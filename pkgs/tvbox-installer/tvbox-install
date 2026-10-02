@@ -169,7 +169,7 @@ partition() {
     run wipefs -af "$DISK"
     run sgdisk --zap-all "$DISK"
     run sgdisk -n1:0:+1G -t1:ef00 -c1:EFI -n2:0:0 -t2:8300 -c2:"$NAME" "$DISK"
-    run partprobe "$DISK"
+    run partx -u "$DISK"
     run udevadm settle
     run mkfs.fat -F32 -n EFI "$esp"
     run mkfs.btrfs -f -L "$NAME" "$root"

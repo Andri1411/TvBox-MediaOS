@@ -16,6 +16,8 @@
 #                  (Xbox Series controller) to test real controller input
 #   QEMU_AUDIO=1   add an Intel HDA sound card (HDMI-like PCM sink in the guest)
 #   QEMU_STATE_DIR where disk, UEFI vars, serial log and QMP socket live (default build/qemu)
+#   QEMU_AUTOINSTALL  file with installer answers (key=value), passed via fw_cfg
+#                  as opt/tvbox/autoinstall: the ISO installs unattended and powers off
 #   QEMU_EXTRA     extra arguments appended verbatim
 #
 # Side channels (for scripted tests, see scripts/qmp.py):
@@ -118,6 +120,11 @@ if [[ $mode == iso ]]; then
     log "booting ISO $iso"
 else
     log "booting disk $disk"
+fi
+
+if [[ -n ${QEMU_AUTOINSTALL:-} ]]; then
+    [[ -f $QEMU_AUTOINSTALL ]] || die "QEMU_AUTOINSTALL file not found: $QEMU_AUTOINSTALL"
+    args+=(-fw_cfg "name=opt/tvbox/autoinstall,file=$QEMU_AUTOINSTALL")
 fi
 
 # shellcheck disable=SC2206 # QEMU_EXTRA is intentionally word-split

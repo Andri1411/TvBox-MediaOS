@@ -91,3 +91,81 @@ screen/overlay in WebKitGTK; browser chosen by testing in Phase 3.
 - **Requirement:** GitHub Pages for a private repository needs a paid GitHub
   plan. With a free account the repository must be public, or the Pages site
   must come from a separate public repository.
+
+## Phase 1 — installer ISO, base system, btrfs/snapper, session
+
+### ISO: releng, trimmed, UEFI only
+`iso/` started as archiso's `releng` profile with BIOS/syslinux, the speech
+and memtest entries, cloud-init, VM guest agents, modem/VPN tooling and most
+rescue tools removed. The target is UEFI-only, so systemd-boot is the only
+ISO boot mode. Kernel params add `console=ttyS0` so QEMU tests can read the
+serial log; on real hardware without a serial port it is harmless.
+
+### The installer is a package (`tvbox-installer`)
+It is linted, versioned and built like everything else, and the ISO just
+installs it. It autostarts on tty1 (`/root/.zlogin`); other ttys and SSH get
+a normal shell for rescue work. A `dialog` TUI asks only for the disk, Wi-Fi
+(only when no wired connection works) and an optional GitHub username to
+import SSH keys, then a default-*no* confirmation.
+
+### Unattended install only via QEMU fw_cfg
+Automated tests answer the installer through a QEMU fw_cfg blob
+(`opt/tvbox/autoinstall`). Real hardware has no fw_cfg, so there is no kernel
+parameter or file on the stick that could make a real machine wipe its disk
+without a confirmation.
+
+### Disk layout
+1 GiB ESP at `/efi` (GRUB's EFI binary only) + one btrfs partition with
+`@ @home @snapshots @var_log @var_cache_pacman_pkg @var_tmp`, mounted
+`noatime,compress=zstd:1`. `/boot` is inside `@`. `subvolid=` is stripped from
+fstab so a rolled-back `@` mounts by name. No swap partition: zram.
+
+### What the installer still writes by hand
+Only machine-specific or one-time things: fstab, hostname, locale, timezone
+(auto-detected from IP, fallback UTC), the `[tvbox]` stanza in
+`/etc/pacman.conf`, users, SSH keys, the Wi-Fi profile, the snapper config
+(copied from a template in `tvbox-base`), and 3 lines in `/etc/default/grub`.
+`/etc/default/grub` is owned by the `grub` package and Arch's GRUB has no
+`grub.d` drop-in directory for it, so editing it once at install time is the
+least bad option.
+
+### Enabling units from a package without fighting the user
+`tvbox-base` lists the units it wants in `/usr/share/tvbox/enabled-units`. Its
+install script enables each unit the first time it appears and records it in
+`/var/lib/tvbox/enabled-units.seen`. A unit added in a later version is
+enabled on upgrade, and a unit the user disabled stays disabled. A blanket
+`systemctl preset-all` was rejected because it would also reset units we
+don't own.
+
+### GRUB is reinstalled on every grub upgrade
+Arch doesn't re-run `grub-install` when the grub package updates, which can
+leave an old EFI binary with new modules. A pacman hook runs
+`tvbox-grub-update`, which installs the named entry plus the removable path
+`EFI/BOOT/BOOTX64.EFI` (bare boards sometimes lose NVRAM entries) and
+regenerates `grub.cfg`.
+
+### initramfs uses busybox/udev hooks, not systemd
+`grub-btrfs-overlayfs` (makes read-only snapshots bootable with a tmpfs
+overlay) is a busybox `run_latehook` hook and does not work with the systemd
+initramfs, so the HOOKS line uses `base udev …`. No `fsck` hook (btrfs
+doesn't need it).
+
+### Session: greetd + restart loop
+greetd auto-logs in `tv` once (`initial_session`). `tvbox-session` restarts
+sway if it exits with an error and gives up after 5 crashes within 10 s each,
+so a broken compositor falls back to a text login (`default_session`) instead
+of a crash loop. greetd's own config file belongs to the greetd package, so
+ours is selected with a `greetd.service` drop-in (`--config`).
+`WLR_RENDERER_ALLOW_SOFTWARE=1` lets sway start in QEMU without virgl; on
+real hardware the Intel GPU is used anyway.
+
+### Who can do what
+`tv` has no password, no sudo, and is in `input video audio`. Maintenance is
+`ssh root@box`, key-only. If `tv` (which runs the browsers) is compromised,
+that doesn't give root.
+
+### No packages built with --syncdeps
+Our packages are `arch=any` with no build step, so `makepkg --nodeps` is used
+for them. Otherwise building `tvbox-base` would install its whole runtime
+dependency tree (kernel, mesa, ...) into the builder. AUR packages still use
+`--syncdeps`.

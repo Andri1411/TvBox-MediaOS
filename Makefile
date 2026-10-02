@@ -5,7 +5,7 @@ export QEMU_MEM QEMU_CPUS QEMU_DISK_SIZE QEMU_HUB_PORT QEMU_SSH_PORT
 
 RUN := scripts/run-in-builder.sh
 
-.PHONY: help builder packages repo iso pages serve-repo qemu-iso qemu-disk qemu-smoke \
+.PHONY: help builder packages repo iso pages serve-repo qemu-iso qemu-disk qemu-smoke qemu-install \
         qemu-reset lint test clean distclean
 
 help: ## Show this help
@@ -38,6 +38,9 @@ qemu-disk: ## Boot the installed test disk in QEMU (UEFI)
 
 qemu-smoke: ## Headless check that the QEMU/OVMF harness itself works
 	tests/qemu/smoke.sh
+
+qemu-install: ## End-to-end: unattended install from the ISO in QEMU, boot it, run checks
+	tests/qemu/install.sh
 
 qemu-reset: ## Delete the QEMU test disk and UEFI variables
 	rm -rf $(BUILD_DIR)/qemu

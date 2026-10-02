@@ -2,7 +2,7 @@
 """Minimal QMP client for scripted QEMU tests (stdlib only).
 
     qmp.py SOCK quit
-    qmp.py SOCK screendump out.ppm
+    qmp.py SOCK screendump out.ppm|out.png
     qmp.py SOCK send-key ctrl-alt-f2      # keys joined with '-' are pressed together
     qmp.py SOCK send-key up up ret        # separate args are pressed one after another
     qmp.py SOCK type 'hello world'        # US layout text
@@ -84,7 +84,10 @@ def main(argv):
         except ConnectionError:
             pass
     elif op == "screendump":
-        q.cmd("screendump", filename=rest[0])
+        if rest[0].endswith(".png"):
+            q.cmd("screendump", filename=rest[0], format="png")
+        else:
+            q.cmd("screendump", filename=rest[0])
     elif op == "send-key":
         for combo in rest:
             q.key(combo)

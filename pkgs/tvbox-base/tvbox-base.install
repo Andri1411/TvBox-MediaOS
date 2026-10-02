@@ -1,0 +1,17 @@
+# Enable the units listed in /usr/share/tvbox/enabled-units. Units seen before
+# are remembered, so a unit the user disabled stays disabled across upgrades.
+_tvbox_enable_units() {
+    local seen=/var/lib/tvbox/enabled-units.seen unit
+    mkdir -p /var/lib/tvbox
+    touch "$seen"
+    while read -r unit; do
+        case $unit in ''|'#'*) continue ;; esac
+        grep -qxF "$unit" "$seen" && continue
+        systemctl enable "$unit" 2>/dev/null || echo "tvbox-base: could not enable $unit"
+        echo "$unit" >> "$seen"
+    done < /usr/share/tvbox/enabled-units
+    systemctl set-default graphical.target >/dev/null 2>&1 || true
+}
+
+post_install() { _tvbox_enable_units; }
+post_upgrade() { _tvbox_enable_units; }

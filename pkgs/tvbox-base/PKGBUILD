@@ -1,0 +1,47 @@
+# Base system for the tvbox media PC: pulls in everything the box needs and
+# ships its system configuration as drop-ins (user changes go in /etc and win).
+pkgname=tvbox-base
+pkgver=${TVBOX_PKGVER:-0.0.0}
+pkgrel=1
+pkgdesc="tvbox base system: dependencies and system configuration"
+arch=(any)
+license=(GPL-3.0-or-later)
+install=tvbox-base.install
+depends=(
+    tvbox-release tvbox-keyring tvbox-session
+    # kernel and boot
+    linux-lts linux-lts-headers linux-firmware intel-ucode mkinitcpio
+    grub efibootmgr grub-btrfs inotify-tools
+    # filesystem and snapshots
+    btrfs-progs dosfstools snapper snap-pac
+    # system services
+    networkmanager bluez bluez-utils openssh polkit zram-generator
+    # audio
+    pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils sof-firmware
+    # Intel graphics and video decoding
+    mesa vulkan-intel intel-media-driver libva-utils
+    # maintenance
+    sudo less nano htop pacman-contrib
+)
+source=(
+    journald.conf logind.conf sleep.conf zram-generator.conf sysctl.conf
+    mkinitcpio.conf sshd.conf networkmanager.conf snapper-root.conf
+    enabled-units grub-update.hook tvbox-grub-update
+)
+sha256sums=(SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
+
+package() {
+    local d=$pkgdir
+    install -Dm644 journald.conf        "$d/usr/lib/systemd/journald.conf.d/50-tvbox.conf"
+    install -Dm644 logind.conf          "$d/usr/lib/systemd/logind.conf.d/50-tvbox.conf"
+    install -Dm644 sleep.conf           "$d/usr/lib/systemd/sleep.conf.d/50-tvbox.conf"
+    install -Dm644 zram-generator.conf  "$d/usr/lib/systemd/zram-generator.conf"
+    install -Dm644 sysctl.conf          "$d/usr/lib/sysctl.d/50-tvbox.conf"
+    install -Dm644 mkinitcpio.conf      "$d/etc/mkinitcpio.conf.d/50-tvbox.conf"
+    install -Dm644 sshd.conf            "$d/etc/ssh/sshd_config.d/50-tvbox.conf"
+    install -Dm644 networkmanager.conf  "$d/usr/lib/NetworkManager/conf.d/50-tvbox.conf"
+    install -Dm644 snapper-root.conf    "$d/usr/share/tvbox/snapper-root.conf"
+    install -Dm644 enabled-units        "$d/usr/share/tvbox/enabled-units"
+    install -Dm644 grub-update.hook     "$d/usr/share/libalpm/hooks/90-tvbox-grub-update.hook"
+    install -Dm755 tvbox-grub-update    "$d/usr/share/libalpm/scripts/tvbox-grub-update"
+}

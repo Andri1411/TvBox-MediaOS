@@ -1,0 +1,22 @@
+# Graphical session: greetd auto-login of the tv user into a kiosk-style sway.
+pkgname=tvbox-session
+pkgver=${TVBOX_PKGVER:-0.0.0}
+pkgrel=1
+pkgdesc="tvbox kiosk session (greetd autologin, sway)"
+arch=(any)
+license=(GPL-3.0-or-later)
+depends=(greetd sway swaybg foot noto-fonts noto-fonts-emoji jq iproute2)
+source=(greetd.toml greetd.service.conf tvbox-session sway.config
+        tvbox-session.target tvbox-display tvbox-status)
+sha256sums=(SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
+
+package() {
+    local d=$pkgdir
+    install -Dm644 greetd.toml          "$d/usr/share/tvbox/greetd.toml"
+    install -Dm644 greetd.service.conf  "$d/usr/lib/systemd/system/greetd.service.d/50-tvbox.conf"
+    install -Dm755 tvbox-session        "$d/usr/bin/tvbox-session"
+    install -Dm644 sway.config          "$d/usr/share/tvbox/sway/config"
+    install -Dm644 tvbox-session.target "$d/usr/lib/systemd/user/tvbox-session.target"
+    install -Dm755 tvbox-display        "$d/usr/bin/tvbox-display"
+    install -Dm755 tvbox-status         "$d/usr/bin/tvbox-status"
+}

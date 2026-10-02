@@ -1,0 +1,23 @@
+#!/bin/bash
+# Session entry point (started by greetd as the tv user). Restarts sway if it
+# exits, so a compositor crash or "restart session" never leaves a login prompt.
+export XDG_CURRENT_DESKTOP=sway
+export XDG_SESSION_DESKTOP=sway
+export XDG_SESSION_TYPE=wayland
+export LIBVA_DRIVER_NAME=iHD
+export MOZ_ENABLE_WAYLAND=1
+export QT_QPA_PLATFORM=wayland
+# Only takes effect when no GPU acceleration exists (QEMU without virgl).
+export WLR_RENDERER_ALLOW_SOFTWARE=1
+
+config=/usr/share/tvbox/sway/config
+fails=0
+while :; do
+    start=$SECONDS
+    sway --config "$config" >>"${XDG_RUNTIME_DIR:-/tmp}/sway.log" 2>&1 && exit 0
+    # sway exited with an error: retry, but stop hammering after rapid crashes
+    # so greetd's fallback can take over.
+    if ((SECONDS - start < 10)); then ((++fails)); else fails=0; fi
+    ((fails >= 5)) && exit 1
+    sleep 1
+done

@@ -11,7 +11,8 @@ RUN update-ca-trust \
 
 # makepkg refuses to run as root; the entrypoint remaps this user to the host UID.
 RUN useradd -m builder \
- && echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+ && echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder \
+ && git config --system safe.directory '*'   # repo is bind-mounted, owned by the host user
 
 COPY builder-entrypoint.sh /usr/local/bin/builder-entrypoint
 ENTRYPOINT ["/usr/local/bin/builder-entrypoint"]

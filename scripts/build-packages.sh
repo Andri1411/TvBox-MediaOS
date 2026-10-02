@@ -18,7 +18,7 @@ export PKGDEST="$out" SRCDEST="$BUILD_DIR/work/sources" BUILDDIR="$work/makepkg"
 export TVBOX_PKGVER; TVBOX_PKGVER=$(pkg_version)
 mkdir -p "$SRCDEST" "$BUILDDIR"
 
-makepkg_args=(--syncdeps --noconfirm --cleanbuild --force --needed)
+makepkg_args=(--noconfirm --cleanbuild --force)
 [[ -n ${SIGN_KEY:-} ]] && makepkg_args+=(--sign --key "$SIGN_KEY")
 
 local_db="$out/_buildlocal.db.tar.gz"
@@ -34,10 +34,11 @@ register_built() {
     sudo pacman -Sy --noconfirm >/dev/null
 }
 
-build_dir() {  # build_dir <dir-with-PKGBUILD>
+build_dir() {  # build_dir <dir-with-PKGBUILD> [extra makepkg args]
     local dir=$1 before after new
+    shift
     before=$(ls "$out")
-    (cd "$dir" && makepkg "${makepkg_args[@]}")
+    (cd "$dir" && makepkg "${makepkg_args[@]}" "$@")
     after=$(ls "$out")
     mapfile -t new < <(comm -13 <(echo "$before") <(echo "$after") | grep -E '\.pkg\.tar\.[a-z]+$' || true)
     ((${#new[@]})) && register_built "${new[@]/#/$out/}"
@@ -52,7 +53,7 @@ build_aur() {  # build_aur <name> <commit>
     git -C "$dir" fetch -q origin
     git -C "$dir" checkout -q --detach "$commit"
     log "AUR $name @ ${commit:0:10}"
-    build_dir "$dir"
+    build_dir "$dir" --syncdeps --needed
 }
 
 wanted() {  # wanted <name>: true if no filter was given or name is in it
@@ -88,7 +89,9 @@ for name in "${order[@]}"; do
         # Copy so makepkg never writes into the source tree.
         rm -rf "${work:?}/$name"
         cp -a "$ROOT/pkgs/$name" "$work/$name"
-        build_dir "$work/$name"
+        # Our packages are arch=any with no build steps: runtime dependencies
+        # need not be installed in the builder.
+        build_dir "$work/$name" --nodeps
     fi
 done
 

@@ -7,7 +7,7 @@ fully usable from the couch with an Xbox controller or a phone.
 - Decisions and things that didn't work: [docs/DECISIONS.md](docs/DECISIONS.md)
 - Original brief: [media-distro-prompt.md](media-distro-prompt.md)
 
-**Status:** Phase 0 (repo skeleton, build tooling, QEMU harness).
+**Status:** Phase 1 (installer ISO, base system, btrfs + snapper, boots to sway).
 
 ## Building
 
@@ -24,6 +24,7 @@ make qemu-disk    # boot the installed test disk
 make serve-repo   # let the VM pacman -Syu from your local build
 make lint         # shellcheck + python checks
 make qemu-smoke   # self-test of the QEMU harness, headless
+make qemu-install # unattended install from the ISO + checks on the booted system
 ```
 
 Settings live in `config.mk` and can be overridden per call, e.g.

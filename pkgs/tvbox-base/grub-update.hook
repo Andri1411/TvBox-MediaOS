@@ -1,0 +1,11 @@
+# GRUB's EFI binary lives on the ESP and is not updated by pacman itself.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = grub
+
+[Action]
+Description = Updating GRUB on the EFI partition...
+When = PostTransaction
+Exec = /usr/share/libalpm/scripts/tvbox-grub-update

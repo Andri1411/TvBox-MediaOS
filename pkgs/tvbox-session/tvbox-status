@@ -1,0 +1,13 @@
+#!/bin/bash
+# Phase 1 placeholder screen: shows that the box is up and how to reach it.
+# shellcheck source=/dev/null
+. /usr/share/tvbox/release 2>/dev/null || true
+while :; do
+    clear
+    printf '\n\n   tvbox %s\n\n' "${VERSION:-?}"
+    printf '   host     %s\n' "$(cat /etc/hostname)"
+    printf '   address  %s\n' "$(ip -4 -o addr show scope global | awk '{print $4}' | paste -sd' ')"
+    printf '   uptime   %s\n' "$(uptime -p)"
+    printf '\n   The home screen arrives in a later version.\n'
+    sleep 30
+done

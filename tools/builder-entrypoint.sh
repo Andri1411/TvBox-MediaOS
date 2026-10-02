@@ -12,12 +12,17 @@ if [[ $uid != 0 ]]; then
     groupmod -o -g "$gid" builder
     usermod -o -u "$uid" -g "$gid" builder
     chown builder: /home/builder
+else
+    # Host user is root: makepkg still refuses root, so build as the default
+    # builder user and hand it the output directory.
+    mkdir -p "${BUILD_DIR:-build}"
+    chown -R builder: "${BUILD_DIR:-build}"
 fi
 
 # Refresh package databases once per container run; builds install deps.
 pacman -Sy --noconfirm >/dev/null
 
-if [[ ${AS_ROOT:-0} == 1 || $uid == 0 ]]; then
+if [[ ${AS_ROOT:-0} == 1 ]]; then
     exec "$@"
 fi
 exec sudo -E -u builder env HOME=/home/builder "$@"

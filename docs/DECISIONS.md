@@ -64,3 +64,15 @@ host, independent of Arch.
   need mirrors (lint, QEMU harness) was run there.
 - **shellcheck SC2054** flags QEMU's comma-separated option values as array
   mistakes; disabled file-wide in `scripts/qemu.sh` only.
+
+### Phase 0 review answers
+Name `tvbox`; automatic boot fallback instead of controller-driven GRUB menu;
+`linux-lts`; phone remote over plain HTTP with token auth; sshd on (key-only);
+32 GB RAM, so all services may stay alive in the background; home
+screen/overlay in WebKitGTK; browser chosen by testing in Phase 3.
+
+### Pending: repo hosting
+Where the installed box downloads `[tvbox]` packages from, and who signs them.
+Proposal under discussion: CI builds and signs, publishes to GitHub Pages of
+this repository, private key as an Actions secret, public key in
+`tvbox-keyring`.

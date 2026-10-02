@@ -1,13 +1,11 @@
 # tvbox architecture
 
-Status: **Phase 0 draft, for review.** Names, paths and choices marked *(open)*
-are listed again under [Open questions](#open-questions) and should be settled
-before Phase 1 hard-codes them.
+Status: **Phase 0, reviewed.** Review answers are in
+[§6](#6-review-outcome-phase-0).
 
 `tvbox` is the working name. It is defined once in `config.mk` (`NAME`) and is
 the prefix for packages (`tvbox-*`), the repo (`[tvbox]`), config paths
-(`/etc/tvbox/`, `~/.config/tvbox/`) and units (`tvbox-*.service`). *(open: keep
-`tvbox` or rename to match the repo, `mediaos`)*
+(`/etc/tvbox/`, `~/.config/tvbox/`) and units (`tvbox-*.service`).
 
 ## 1. Goals that drive the design
 
@@ -86,8 +84,7 @@ What the installer does (and nothing else):
    **`/boot` stays inside `@`**, so kernel + initramfs are snapshotted together
    with `/usr/lib/modules`. Booting an old snapshot therefore boots the kernel
    that matches its modules. Only GRUB's own EFI binary lives on the ESP.
-3. `pacstrap` `base linux-lts linux-firmware intel-ucode tvbox-base`
-   *(open: `linux-lts` vs `linux`)*.
+3. `pacstrap` `base linux-lts linux-firmware intel-ucode tvbox-base`.
 4. Machine-specific files only: fstab, hostname, locale/timezone (defaults,
    changeable later), the `[tvbox]` stanza in `/etc/pacman.conf`, Wi-Fi
    profile copied to NetworkManager, the `tv` user, `grub-install`.
@@ -133,6 +130,9 @@ strictly newer version and the box sees it as an update.
   cap; `noatime`; snapper timeline off.
 - **Network:** NetworkManager (iwd backend not needed; default wpa_supplicant
   is fine). **Bluetooth:** BlueZ with `AutoEnable=true`, fast reconnect.
+- **SSH:** `sshd` enabled, `PasswordAuthentication no`, root login off.
+  `authorized_keys` for `tv` is seeded by the installer (optional prompt,
+  e.g. a GitHub username to fetch keys from) and editable from the phone.
 - **Input permissions:** udev rule giving the `input` group access to
   `/dev/uinput`; `tv` is in `input`. `xpadneo-dkms` for Bluetooth Xbox pads.
 - **Video:** `intel-media-driver`, `LIBVA_DRIVER_NAME=iHD` in the session.
@@ -286,7 +286,7 @@ rendering the hub's web UI:
 
 Why not use Chromium for these: Chrome windows cannot be layer-shell
 surfaces, and keeping the home screen out of the browser means home and the
-menu still work when Chrome crashes or is being updated. *(open, see §5)*
+menu still work when Chrome crashes or is being updated.
 
 ### 3.8 `tvbox-updater` (Phase 6)
 
@@ -409,7 +409,7 @@ audio misbehave on hardware, the robust fallback is forcing the connector on
 with the TV's captured EDID (`drm.edid_firmware=` + `video=HDMI-A-1:e`), so
 the kernel never sees a disconnect.
 
-**Browser.** Two candidates, decided in Phase 3 after testing *(open)*:
+**Browser.** Two candidates, decided in Phase 3 after testing:
 
 - *Google Chrome* (AUR, rebuilt into `[tvbox]`): Widevine built in and
   auto-updating, best chance for VA-API + DRM. Caveat: my understanding is
@@ -423,27 +423,22 @@ the kernel never sees a disconnect.
 Either way uBlock Origin will be **uBlock Origin Lite** (MV3); classic uBO
 needs MV2, which Chromium-based browsers no longer support.
 
-## 6. Open questions
+## 6. Review outcome (Phase 0)
 
-1. **Name:** keep `tvbox` (package prefix, `/etc/tvbox`, `[tvbox]` repo) or use
-   `mediaos` like the repository? Cheap to change now, expensive after Phase 1.
-2. **Boot fallback:** is the automatic-fallback + on-TV rollback design in §5
-   acceptable in place of "pick the snapshot in the boot menu with the
-   controller"? (A USB keyboard, or the future ESP32 in USB-HID mode, would
-   still work in GRUB itself.)
-3. **Kernel:** `linux-lts` (fewer regressions, my default for an appliance) or
-   `linux` (newest i915/Xe fixes)?
-4. **Repo hosting and signing:** proposal: CI builds and signs, publishes to
-   GitHub Pages (or Releases) of this repository; the private key is a GitHub
-   Actions secret, the public key ships in `tvbox-keyring`. Who holds the key,
-   and is GitHub hosting OK?
-5. **Phone remote transport:** plain HTTP on the LAN with token auth
-   (simple; token sniffable by someone on the same Wi-Fi) vs HTTPS with a
-   self-signed cert (phones show a warning on first visit). I lean to HTTP for
-   now.
-6. **SSH:** ship `sshd` enabled (key-only, key added at install or via phone)
-   for maintenance and hardware debugging, or off by default?
-7. **RAM size** of the board? Decides how many apps stay alive in the
-   background.
-8. **Home screen/overlay in WebKitGTK** (§3.7) instead of a Chromium window —
-   OK?
+Settled:
+
+1. **Name:** `tvbox` stays.
+2. **Boot fallback:** automatic fallback to the pre-update snapshot + on-TV
+   rollback choice, as in §5.
+3. **Kernel:** `linux-lts`.
+4. **Phone remote:** plain HTTP on the LAN with token auth.
+5. **SSH:** `sshd` enabled by default, key-only (no password login). Keys are
+   added at install time or later from the phone settings page.
+6. **RAM:** 32 GB. Generous enough to keep all five services alive in the
+   background; the LRU eviction threshold stays as a safety net.
+7. **Home screen/overlay:** WebKitGTK (`tvbox-shell`, §3.7).
+8. **Browser:** Chrome vs Chromium+Widevine decided by testing in Phase 3.
+
+Still open:
+
+- **Repo hosting and signing** (see DECISIONS.md, "Pending: repo hosting").

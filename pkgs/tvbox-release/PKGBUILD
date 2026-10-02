@@ -1,0 +1,19 @@
+# Release metadata and pacman repo configuration for the installed system.
+# Every other tvbox package depends on this one.
+pkgname=tvbox-release
+pkgver=${TVBOX_PKGVER:-0.0.0}
+pkgrel=1
+pkgdesc="tvbox release information and [tvbox] repository configuration"
+arch=(any)
+license=(GPL-3.0-or-later)
+backup=(etc/pacman.d/tvbox-mirrorlist)
+source=(tvbox-mirrorlist)
+sha256sums=(SKIP)
+
+package() {
+    install -Dm644 /dev/stdin "$pkgdir/usr/share/tvbox/release" <<END
+NAME=tvbox
+VERSION=$pkgver
+END
+    install -Dm644 tvbox-mirrorlist "$pkgdir/etc/pacman.d/tvbox-mirrorlist"
+}

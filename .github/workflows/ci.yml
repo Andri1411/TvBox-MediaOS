@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      iso:
+        description: Also build the installer ISO
+        type: boolean
+        default: false
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck qemu-system-x86 ovmf
+      - run: make lint
+      - run: make qemu-smoke
+
+  build:
+    needs: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # pkgver uses the commit count
+      - run: make builder CONTAINER=docker
+      - run: make repo CONTAINER=docker
+      - if: ${{ inputs.iso }}
+        run: make iso CONTAINER=docker
+      - uses: actions/upload-artifact@v4
+        with:
+          name: repo
+          path: build/repo
+      - if: ${{ inputs.iso }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: iso
+          path: build/iso/*.iso

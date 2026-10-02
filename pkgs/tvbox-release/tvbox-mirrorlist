@@ -1,0 +1,8 @@
+# Where the installed system fetches [tvbox] packages from.
+# Included from /etc/pacman.conf by the installer:
+#   [tvbox]
+#   Include = /etc/pacman.d/tvbox-mirrorlist
+#
+# The real URL is decided in Phase 1 (see docs/ARCHITECTURE.md, open questions).
+# For QEMU testing against `make serve-repo` on the dev host:
+#Server = http://10.0.2.2:8800/repo

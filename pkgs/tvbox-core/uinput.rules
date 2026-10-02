@@ -1,0 +1,2 @@
+# tvbox-inputd (tv user, group input) creates its virtual keyboard/mouse here.
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"

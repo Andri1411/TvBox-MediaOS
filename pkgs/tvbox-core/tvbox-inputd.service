@@ -1,0 +1,12 @@
+[Unit]
+Description=tvbox input daemon (controllers and remotes)
+PartOf=tvbox-session.target
+# Input is the one thing that must come back no matter what.
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/tvbox-inputd
+Restart=always
+RestartSec=1
+WatchdogSec=30

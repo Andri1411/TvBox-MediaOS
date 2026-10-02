@@ -118,6 +118,16 @@ check "pacman makes pre/post snapshots" \
 check "snapshots appear in GRUB menu" \
     'for i in $(seq 30); do grep -q "snapshots" /boot/grub/grub-btrfs.cfg 2>/dev/null && exit 0; sleep 2; done; exit 1'
 
+# Phase 2: input layer and system menu (details: tests/qemu/input.sh)
+check "inputd, hub and shell running" 'for u in tvbox-inputd tvbox-hub tvbox-shell; do systemctl --user -M tv@ is-active -q $u || { echo "$u not active"; exit 1; }; done'
+check "virtual input device present" 'grep -q "tvbox virtual input" /proc/bus/input/devices'
+check "xpadneo module built by DKMS" 'dkms status | grep -q "hid-xpadneo.*installed"'
+check "system menu opens and closes" \
+    'api() { curl -sf -X POST -d "$1" 127.0.0.1:8080/api/cmd >/dev/null; }; state() { curl -sf 127.0.0.1:8080/api/state; };
+     for i in $(seq 30); do state | grep -q "\"ui_clients\": [1-9]" && break; sleep 1; done;
+     api "{\"cmd\":\"action\",\"action\":\"ui:system_menu\"}" && sleep 1 && state | grep -q "\"overlay\": \"menu\"" &&
+     api "{\"cmd\":\"close\"}" && state | grep -q "\"overlay\": null"'
+
 $qmp screendump "$state/screen.png" && log "screenshot: $state/screen.png"
 ((failed == 0)) || die "some checks failed"
 log "all checks passed"

@@ -6,7 +6,7 @@ FROM archlinux:latest
 COPY extra-ca.crt /etc/ca-certificates/trust-source/anchors/extra-ca.crt
 RUN update-ca-trust \
  && pacman -Syu --noconfirm --needed \
-      base-devel git archiso pacman-contrib sudo python python-pytest shellcheck \
+      base-devel git archiso pacman-contrib sudo python python-pytest python-evdev python-aiohttp shellcheck \
  && pacman -Scc --noconfirm
 
 # makepkg refuses to run as root; the entrypoint remaps this user to the host UID.

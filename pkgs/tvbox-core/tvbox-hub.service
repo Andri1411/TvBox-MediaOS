@@ -1,0 +1,12 @@
+[Unit]
+Description=tvbox hub (system menu backend, web UI)
+PartOf=tvbox-session.target
+After=tvbox-inputd.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/tvbox-hub
+Restart=always
+RestartSec=1
+WatchdogSec=30

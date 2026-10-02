@@ -20,9 +20,16 @@ if [[ -r /etc/tvbox/session.conf ]]; then set -a; . /etc/tvbox/session.conf; set
 
 config=/usr/share/tvbox/sway/config
 fails=0
+# "Restart session" in the system menu creates this flag and makes sway exit
+# cleanly; without the flag a clean exit is a logout.
+restart_flag=${XDG_RUNTIME_DIR:-/tmp}/tvbox/restart-session
 while :; do
+    rm -f "$restart_flag"
     start=$SECONDS
-    sway --config "$config" >>"${XDG_RUNTIME_DIR:-/tmp}/sway.log" 2>&1 && exit 0
+    if sway --config "$config" >>"${XDG_RUNTIME_DIR:-/tmp}/sway.log" 2>&1; then
+        [[ -e $restart_flag ]] || exit 0
+        continue
+    fi
     # sway exited with an error: retry, but stop hammering after rapid crashes
     # so greetd's fallback can take over.
     if ((SECONDS - start < 10)); then ((++fails)); else fails=0; fi

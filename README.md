@@ -7,7 +7,8 @@ fully usable from the couch with an Xbox controller or a phone.
 - Decisions and things that didn't work: [docs/DECISIONS.md](docs/DECISIONS.md)
 - Original brief: [media-distro-prompt.md](media-distro-prompt.md)
 
-**Status:** Phase 1 (installer ISO, base system, btrfs + snapper, boots to sway).
+**Status:** Phase 2 (input daemon, bindings, controller defaults, system menu) on top of
+Phase 1 (installer ISO, base system, btrfs + snapper, boots to sway).
 
 ## Building
 
@@ -25,7 +26,20 @@ make serve-repo   # let the VM pacman -Syu from your local build
 make lint         # shellcheck + python checks
 make qemu-smoke   # self-test of the QEMU harness, headless
 make qemu-install # unattended install from the ISO + checks on the booted system
+make qemu-input   # input layer + system menu checks in that VM, with a fake Xbox pad
 ```
+
+Docker needs to be usable by your user (`sudo usermod -aG docker $USER`, then
+log in again or prefix commands with `sg docker -c "make iso"`).
+
+`make lint` also runs the unit tests when `python3` has `pytest`, `evdev` and
+`aiohttp`; otherwise point it at an interpreter that does:
+`PYTHON=~/venv/bin/python make lint` (in a venv without Python headers,
+`pip install pytest aiohttp evdev-binary`).
+
+While developing, `tests/qemu/vm.sh up | push | reboot | ssh | tv | shot | down`
+drives the installed test VM: `push` installs the packages from `build/repo`
+without reinstalling the system.
 
 Settings live in `config.mk` and can be overridden per call, e.g.
 `make qemu-iso QEMU_MEM=8G QEMU_DISPLAY=vnc`.

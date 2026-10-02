@@ -252,3 +252,190 @@ HDMI output, 4K scaling and hotplug; Bluetooth; PipeWire HDMI audio; thermals.
 **Open for later phases:** automatic boot fallback needs its own GRUB entry
 (Phase 6); `systemd-remount-fs` "fails" when booted into a snapshot (health
 page must not flag it); retry output power-on for HDMI hotplug.
+
+## Phase 2 — input daemon, bindings, controller defaults, system menu
+
+### How a button becomes an action
+Two layers, as planned. `devices.py` turns raw evdev events into logical
+buttons; `engine.py` turns buttons into actions using `bindings.toml`.
+- A binding without `long` fires when the button goes **down** (lowest
+  latency). A binding with `long` fires its short action on **release** and
+  its long action after `long_press_ms` while still held. `repeat` and `long`
+  can't be combined on one button; the parser rejects it.
+- `key:` actions are taps (down + up at once), not holds. Hold-repeat is done
+  by the daemon (`repeat = true`), so the rate is the same in every app and
+  does not depend on each client's own key-repeat settings.
+- The left stick produces `ls_up`… buttons, which fall back to the d-pad
+  bindings unless bound themselves; the right stick produces `rs_*`, unbound
+  by default. Sticks are four-way with hysteresis, so a menu never moves
+  diagonally or flaps near the threshold.
+- When the focused app or the mode changes under a held button, the button
+  is cancelled: its repeat stops and its release fires nothing. Otherwise a
+  long press that opens the menu would also "press" something in the menu.
+
+### The system menu button can't be configured away
+The parser rejects a config in which no `[global]` button opens
+`ui:system_menu`, and rejects `[app.*]` sections that rebind such a button.
+That is what "always reachable no matter what app is focused" means in
+practice; it also protects the phone's bindings editor (Phase 5) from locking
+the user out.
+
+### A broken bindings file never takes the controller away
+On reload, a file with errors is rejected as a whole and the previous bindings
+stay active. At startup, if the user file is broken, the daemon falls back to
+`/etc` + defaults, then defaults alone. The errors are in `tvbox-ctl status`,
+the journal, and the system menu shows a notice. `tvbox-ctl check [file]`
+validates without touching the running daemon.
+
+### Keyboards are left alone (change from the Phase 0 plan)
+ARCHITECTURE said a plugged-in keyboard would be read without grabbing it,
+with "only explicitly bound global keys intercepted". evdev can't intercept
+single keys: either the device is grabbed and everything is re-emitted, or the
+app sees every key too, and a bound key would then act twice. So:
+- **gamepads** and **remotes** (devices with arrows + OK but no alphabet) are
+  grabbed and go through the bindings;
+- **keyboards** are not touched by inputd at all. Their way into the system
+  menu is sway: `Ctrl+Alt+M` or the Menu key opens it, `Ctrl+Alt+H` goes home,
+  and while the menu is open the hub switches sway into a binding mode where
+  arrows/Enter/Escape drive the menu instead of the app;
+- a keyboard-like device that should behave as a remote (the future ESP32 BLE
+  remote presents itself as a full keyboard) gets a `[[device]]` rule in
+  bindings.toml: `profile = "remote"`, `grab = true`, optional extra key map.
+
+### The focused app is the sway workspace name
+One workspace per app, named after the service id (Phase 3). inputd subscribes
+to sway's workspace events itself, so per-app bindings work without the hub.
+Matching on window `app_id`/class was rejected: all Chrome instances share
+one unless each is started with its own class, and the workspace is already
+unique.
+
+### While the overlay is open, nothing reaches the app
+In `ui` mode, d-pad/stick/A/B go to the hub as navigation events. Other
+buttons only fire `ui:`, `volume:`, `audio:` and `mouse:` actions; `key:` and
+`app:` actions are dropped. If the shell or the hub dies while the menu is
+open, the hub (or its restarted successor) puts inputd back into the previous
+mode, and the hub refuses to open the menu while no shell is connected, so
+the controller can't get stuck steering an invisible menu. Both cases are in
+the VM test.
+
+### Mouse mode came early
+Basic mouse mode (left stick = pointer with a quadratic curve and a speed
+ramp, right stick = scroll, A = click) is in Phase 2 instead of Phase 4,
+because the menu item would otherwise do nothing and the virtual device has
+to declare its pointer capabilities at creation anyway. The cursor is hidden
+with sway's `seat * hide_cursor 100` and shown with `hide_cursor 0` in mouse
+mode. Phase 4 still owes: tuning on the real TV, right click, drag.
+
+### One overlay window, mapped only when needed
+`tvbox-shell` is a GTK4 layer-shell window (overlay layer, anchored to all
+edges, keyboard interactivity none, empty input region) showing the hub's
+page in WebKitGTK. The page tells the shell when it has something to show
+(menu or OSD) and the window is unmapped otherwise, so sway doesn't blend a
+transparent fullscreen surface over the video all day and can scan the video
+out directly. The page keeps its WebSocket while unmapped.
+
+### Hub listens on loopback only for now, and loopback is not trusted blindly
+`127.0.0.1:8080` until the phone remote brings token authentication
+(Phase 5). The QEMU port forward to 8080 therefore answers nothing yet; tests
+talk to the hub over SSH.
+
+A web page running in one of the box's own browsers can also send requests to
+127.0.0.1 (a cross-site POST, or a WebSocket, which no CORS rule stops). The
+hub therefore refuses any request whose `Origin` is not its own or whose
+`Host` is not `127.0.0.1`/`localhost` (DNS rebinding). Otherwise an ad on a
+streaming site could reboot the box. Phase 5 must keep this check when it
+adds the LAN listener.
+
+### Volume
+`wpctl` on `@DEFAULT_AUDIO_SINK@`, capped at 100 % (`-l 1.0`). Trigger
+repeats arrive faster than `wpctl` runs, so the hub sums pending steps and
+applies them in one call. Default step is 2 % at 12 Hz (24 %/s) from the
+triggers and 5 % per press in the menu. Output list from `pw-dump`.
+
+### Restart session and reboot
+"Restart session" creates `$XDG_RUNTIME_DIR/tvbox/restart-session` and tells
+sway to exit; `tvbox-session` restarts sway when the flag exists and treats a
+clean exit without it as a logout (see Phase 1: greetd logs in automatically
+only once per boot). "Reboot" is plain `systemctl reboot` from the hub; logind
+allows it for the `tv` user's active session without a polkit rule (verified
+in the VM, also with a root SSH session open).
+
+### Packaging
+- `tvbox-core` installs the Python code to `/usr/lib/tvbox`, not
+  site-packages: that path contains the Python minor version, and an
+  `arch=any` package there would break on every Arch Python bump until
+  rebuilt. The launchers in `/usr/bin` add the directory to `sys.path`.
+- User units are enabled by shipping the
+  `tvbox-session.target.wants/` symlinks in the package; no install script.
+- `sway` now runs `dbus-update-activation-environment … && systemctl --user
+  start tvbox-session.target` as one command, because separate `exec` lines
+  run concurrently and the shell needs `WAYLAND_DISPLAY`.
+- `xpadneo-dkms` is pinned in `pkgs/aur.list` and built with `--nocheck`
+  (its check step wants kernel headers in the builder; DKMS builds the module
+  on the box, verified against linux-lts 6.18 in the VM). Without xpadneo the
+  kernel's generic driver reports triggers and right stick on different axes;
+  the gamepad profile detects that layout too.
+
+### Tried and didn't work (Phase 2)
+- **inotify on `~/.config/tvbox` before it exists:** the watch silently
+  failed and saving a new user bindings file did nothing. inputd now creates
+  the directory at startup.
+- **`journalctl --user -M tv@` as root:** "Connecting to a machine as non-root
+  is not supported". `tests/qemu/vm.sh tv <cmd>` runs commands as `tv` with
+  its runtime dir instead.
+- **Passing a command through `ssh host sh -c '…' -- args`:** ssh joins its
+  arguments into one string, so the arguments never reach `"$@"`.
+  `vm.sh tv` quotes them with `printf %q`.
+- **`pacman -U --needed` for pushing dev builds into the VM:** uncommitted
+  changes have the same `pkgver`, so nothing was installed. `vm.sh push`
+  always reinstalls.
+- **Exact screenshot comparison after closing the menu:** the placeholder
+  screen redraws its uptime line. The test compares the share of changed
+  pixels instead (`tests/qemu/screendiff.py`).
+- **`pip install evdev` on the dev host (Linux Mint):** needs Python headers.
+  `evdev-binary` has wheels; see README.
+- **WebKitGTK in the VM** logs Mesa/Vulkan errors (no GPU) and falls back to
+  software rendering. Harmless there; says nothing about the real box.
+
+### Phase 2 status
+**Tested in QEMU.** `make qemu-install` (clean install, 21 checks) and
+`make qemu-input` (72 checks) pass, from a freshly built ISO. The input test plugs a fake Xbox
+controller into the guest through uinput, with the name, IDs and capabilities
+the kernel's `xpad` driver reports, and reads what comes out of the virtual
+input device:
+default mapping from the brief (A, B, Start, bumpers, d-pad, left stick,
+triggers, Y, Xbox short/long); hold-repeat; user override and per-app
+bindings; reload on save; rejection of a broken file with the old bindings
+kept; ui and mouse modes; hot-unplug/replug; daemon killed and restarted;
+system menu opened with the controller, volume/mute/app switch/mouse mode
+from the menu, nothing typed into the app meanwhile; shell or hub killed with
+the menu open; restart session; keyboard path into the menu; the menu
+actually visible on screen and gone afterwards. Reboot from the menu and the
+xpadneo DKMS build were checked by hand. Idle CPU of all three daemons is 0 %;
+the shell with its WebKit processes uses about 300 MB.
+
+**Not testable in QEMU, needs the real box:** a real Xbox controller over USB
+(the fake one follows `xpad`, but trigger ranges and the Guide button differ
+between controller generations) and over Bluetooth with xpadneo (pairing is
+not in the UI yet: `bluetoothctl` over SSH until the settings screen exists);
+stick feel, dead zones and mouse-mode speed on a TV; the overlay over real
+video with the GLES renderer (transparency, and whether fullscreen video
+still gets direct scanout once the overlay is unmapped); HDMI audio volume
+and output switching (the VM has one emulated sound card); whether key taps
+of zero length are accepted by every app (fine for sway and terminals).
+
+**Left for later phases, deliberately:** Home and Switch app only switch
+sway workspaces and Restart app only acts on a `tvbox-app@<id>` unit, both of
+which the launcher provides in Phase 3; Settings is a disabled menu entry;
+`ui:keyboard` shows a "later version" notice (Phase 4); the phone sends
+buttons through the same `button` command the tests use (Phase 5).
+
+### Phase 2 review answers
+- **Back:** B stays Escape globally; browser apps get Alt+Left as a per-app
+  binding when the launcher defines them (Phase 3).
+- **Unbound buttons** (X, stick clicks, right stick outside mouse mode): left
+  unbound until real use shows what is missing. Candidate: X = mouse mode
+  toggle.
+- **Volume:** the box controls its own output volume (triggers, menu, later
+  the phone). This is a requirement, not a convenience: it must keep working
+  for every output, including Bluetooth.

@@ -1,8 +1,11 @@
 #!/bin/bash
 # Static checks that run on any Linux host (no Arch needed).
+#   PYTHON=/path/to/venv/bin/python scripts/lint.sh   use an interpreter that
+#   has pytest + evdev + aiohttp when the system python3 doesn't
 # shellcheck source=lib.sh
 . "$(dirname "$0")/lib.sh"
 cd "$ROOT" || exit 1
+py=${PYTHON:-python3}
 
 mapfile -t shells < <(
     git ls-files -co --exclude-standard -- '*.sh' 'pkgs/*/PKGBUILD' 'pkgs/*/*.install'
@@ -29,11 +32,15 @@ fi
 mapfile -t pys < <(git ls-files -co --exclude-standard -- '*.py')
 if ((${#pys[@]})); then
     log "python compile (${#pys[@]} files)"
-    python3 -m py_compile "${pys[@]}"
+    "$py" -m py_compile "${pys[@]}"
 fi
 
-if [[ -d tests/unit ]] && python3 -c 'import pytest' 2>/dev/null; then
-    log "unit tests"
-    python3 -m pytest -q tests/unit
+if [[ -d tests/unit ]]; then
+    if "$py" -c 'import pytest, evdev, aiohttp' 2>/dev/null; then
+        log "unit tests"
+        "$py" -m pytest -q tests/unit
+    else
+        warn "unit tests skipped: $py lacks pytest, evdev or aiohttp"
+    fi
 fi
 log "lint OK"

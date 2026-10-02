@@ -223,6 +223,11 @@ END
 
 install_packages() {
     log "installing packages"
+    # The live system initialises its pacman keyring at boot
+    # (pacman-init.service). Wait for it: starting a oneshot unit blocks until
+    # it has finished. Without this, a fast install races it and every package
+    # fails its signature check ("key is unknown", "keyring is not writable").
+    run systemctl start pacman-init.service
     # pacstrap verifies with the live system's keyring: make it trust our key.
     run pacman-key --populate "$NAME"
     pacman_conf

@@ -18,6 +18,16 @@ boot_timeout=${BOOT_TIMEOUT:-1200}
 ssh_port=${QEMU_SSH_PORT:-2222}
 qmp="python3 $ROOT/scripts/qmp.py $state/qmp.sock"
 
+mirror_port=${MIRROR_PORT:-8801}
+
+# Caching Arch mirror on the host: faster repeat runs, and works where the
+# guest can't reach the internet directly. Shared by install and boot checks.
+python3 "$ROOT/scripts/mirror-cache.py" --port "$mirror_port" --cache "$BUILD_DIR/mirror-cache" \
+    2>"$BUILD_DIR/mirror-cache.log" &
+mirror_pid=$!
+cleanup() { kill "$mirror_pid" 2>/dev/null || true; }
+trap cleanup EXIT
+
 export QEMU_STATE_DIR=$state QEMU_DISPLAY=${QEMU_DISPLAY:-none}
 
 wait_qemu_exit() {  # wait_qemu_exit <pid> <timeout>
@@ -46,6 +56,7 @@ disk=/dev/nvme0n1
 hostname=tvbox
 timezone=UTC
 ssh_key=$(cat "$state/id_ed25519.pub")
+mirror=http://10.0.2.2:$mirror_port/\$repo/os/\$arch
 END
     log "installing from $iso (timeout ${install_timeout}s)"
     QEMU_AUTOINSTALL="$state/autoinstall" "$ROOT/scripts/qemu.sh" iso "$iso" \
@@ -62,7 +73,7 @@ fi
 log "booting installed system"
 "$ROOT/scripts/qemu.sh" disk >"$state/qemu-boot.out" 2>&1 &
 pid=$!
-trap '$qmp quit 2>/dev/null || kill "$pid" 2>/dev/null || true' EXIT
+trap '$qmp quit 2>/dev/null || kill "$pid" 2>/dev/null || true; cleanup' EXIT
 
 deadline=$((SECONDS + boot_timeout))
 until ssh_vm true 2>/dev/null; do

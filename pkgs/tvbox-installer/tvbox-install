@@ -28,6 +28,7 @@ SSH_KEYS=""
 WIFI_SSID=""
 WIFI_PSK=""
 TIMEZONE=""
+MIRROR=""
 
 # ---------------------------------------------------------------- helpers
 
@@ -65,9 +66,15 @@ load_auto() {
             hostname) HOSTNAME_=$val ;;
             ssh_key) SSH_KEYS+="$val"$'\n' ;;
             timezone) TIMEZONE=$val ;;
+            mirror) MIRROR=$val ;;
         esac
     done < "$FWCFG"
     log "automated install (fw_cfg): disk=$DISK"
+    if [[ -n $MIRROR ]]; then
+        # Used for the install and kept by pacstrap for the installed system.
+        printf 'Server = %s\n' "$MIRROR" > /etc/pacman.d/mirrorlist
+        log "using mirror $MIRROR"
+    fi
     [[ -b $DISK ]] || fail "autoinstall disk $DISK not found"
 }
 
@@ -90,7 +97,14 @@ choose_disk() {
         || exit 1
 }
 
-online() { curl -fsS --max-time 6 -o /dev/null https://geo.mirror.pkgbuild.com/ 2>/dev/null; }
+# Online = the first configured Arch mirror answers.
+online() {
+    local url
+    url=$(sed -n 's/^[[:space:]]*Server[[:space:]]*=[[:space:]]*//p' /etc/pacman.d/mirrorlist | head -1)
+    url=${url:-https://geo.mirror.pkgbuild.com/\$repo/os/\$arch}
+    url=${url//\$repo/core}; url=${url//\$arch/x86_64}
+    curl -fsS --max-time 8 -o /dev/null "$url/core.db" 2>/dev/null
+}
 
 wifi_device() { iwctl device list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk '$2 == "station" {print $1; exit}'; }
 

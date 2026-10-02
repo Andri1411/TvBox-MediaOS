@@ -179,3 +179,12 @@ dependency tree (kernel, mesa, ...) into the builder. AUR packages still use
   no time limit. On a network that blocks NTP (the QEMU test sandbox, some
   guest Wi-Fi) the installer never starts. Removed from the ISO; the RTC is
   accurate enough for signature checks and timesyncd still runs.
+- **Guest downloading directly from Arch mirrors in the test sandbox:** the
+  sandbox only allows HTTPS through an intercepting proxy, and the VM
+  doesn't trust its certificate, so the installer reported "no network".
+  `tests/qemu/install.sh` now starts `scripts/mirror-cache.py`, a small
+  caching HTTP mirror on the host (packages cached in `build/mirror-cache`,
+  databases always fresh). The installer takes `mirror=` from the
+  fw_cfg answers. This is useful anyway: repeat test installs no longer download ~1 GB.
+  The installer's online check now probes the first configured mirror instead
+  of a hard-coded host.

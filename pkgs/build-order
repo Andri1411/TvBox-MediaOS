@@ -1,2 +1,3 @@
 # Our own packages, built in this order (dependencies first).
 tvbox-release
+tvbox-keyring

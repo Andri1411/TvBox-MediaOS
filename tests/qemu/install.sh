@@ -24,6 +24,9 @@ wait_qemu_exit() {  # wait_qemu_exit <pid> <timeout>
     local deadline=$((SECONDS + $2))
     while kill -0 "$1" 2>/dev/null; do
         ((SECONDS < deadline)) || { kill "$1"; die "QEMU still running after $2 s"; }
+        if grep -qaE 'Shell> |TVBOX-INSTALL: FAILED' "$state/serial.log" 2>/dev/null; then
+            kill "$1"; die "boot or install failed (see $state/serial.log)"
+        fi
         sleep 5
     done
 }

@@ -1,6 +1,6 @@
 # tvbox architecture
 
-Status: **Phases 1 to 3 implemented.** Phase 0 review answers are in
+Status: **Phases 1 to 4 implemented.** Phase 0 review answers are in
 [§6](#6-review-outcome-phase-0); where the implementation departed from this
 plan, DECISIONS.md says why.
 
@@ -289,8 +289,11 @@ rendering the hub's web UI:
 - **Overlay**: a layer-shell surface on the `overlay` layer, so it is above
   fullscreen apps. Hosts the system menu, the on-screen keyboard and the
   volume/app-switch OSD. It never takes keyboard focus: while it is open,
-  inputd is in `ui` mode and navigation arrives over the hub's WebSocket, and
-  the OSK types into the focused app through inputd's uinput device.
+  inputd is in `ui` mode and navigation arrives over the hub's WebSocket. The
+  on-screen keyboard's text reaches the focused app through DevTools
+  (`Input.insertText`) for browser services and `wtype` (sway's
+  virtual-keyboard protocol) for others; Enter/Backspace/arrows go through
+  inputd's uinput device. (Changed in Phase 4, see DECISIONS.md.)
 
 Why not use Chromium for these: Chrome windows cannot be layer-shell
 surfaces, and keeping the home screen out of the browser means home and the
@@ -333,7 +336,7 @@ pkgs/<name>/PKGBUILD    our packages;  pkgs/aur.list  pinned third-party package
 iso/                    archiso profile + installer            (Phase 1)
 src/tvbox/              Python package: inputd, hub, shell, ctl (Phase 2+)
 src/web/                shared web UI (home, overlay, phone)   (Phase 2+)
-src/extensions/<site>/  per-site navigation / quality scripts  (Phase 4)
+src/extensions/tvnav/   d-pad navigation extension; site rules in sites/<site>.js (Phase 4)
 tests/unit/             pytest, runs on any host
 tests/qemu/             QEMU end-to-end tests
 docs/                   ARCHITECTURE, DECISIONS, USER_GUIDE

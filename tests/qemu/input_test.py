@@ -229,6 +229,8 @@ def main():
     check("triggers = volume, Y = keyboard", got == ["volume:+2", "volume:-2", "ui:keyboard"], str(got))
     got = drain(out, 0.1)
     check("hub actions type nothing", got == [], str(got))
+    close_menu(daemon)          # Y opened the on-screen keyboard (keyboard_test.py covers it)
+    neutral_workspace()
 
     # --- config override, reload, validation ---
     USER_CONF.parent.mkdir(parents=True, exist_ok=True)

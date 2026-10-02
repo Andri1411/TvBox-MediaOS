@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "tvbox navigation",
+  "description": "D-pad navigation for desktop sites on the tvbox media PC.",
+  "version": "1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApOCrYxMDPUyBbgvyP1aUbEkWPpGqyce3rB9sHJ6mPCPKbx+//KCwTcupqUTDpWLGh8qEnYrzL+am1Q3xSQBJTvKVcK/JhbHQqU1WLalI5SBN+YbSDbm8D5LlpcwXONjhSjREXD3eubZSA/3YDSzYDdp/UjXfOrRCSfBXmFspana6+q/x+F3EHMiaEqJ8VVZD1Ruy0PA83QMy6m3M7bBjY30xSZ8DeO6TGXFMJ/CdP7+REyVfmkl0Gw6lyV7G+9hPZ14z3+W8W6ZoT1vQTj2Oa2d0SMmtthSd/+kOszaErs/2G+WaA8+/znolXsacplZI4h7M2I22S/EcS2tTn+K2EQIDAQAB",
+  "host_permissions": ["http://127.0.0.1:8080/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["*://*.netflix.com/*"], "js": ["sites/netflix.js"], "run_at": "document_start" },
+    { "matches": ["*://*.disneyplus.com/*"], "js": ["sites/disney.js"], "run_at": "document_start" },
+    { "matches": ["<all_urls>"], "js": ["nav.js"], "css": ["nav.css"], "run_at": "document_start" }
+  ]
+}

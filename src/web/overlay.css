@@ -49,6 +49,24 @@ html, body {
   background: #ffb45422; color: var(--warn); overflow-wrap: anywhere; }
 #footer { margin-top: auto; padding: .8rem 1rem 0; color: var(--dim); font-size: 1.05rem; }
 
+#keyboard {
+  position: fixed; left: 50%; bottom: 3vh; transform: translateX(-50%);
+  width: 46rem; padding: 1rem 1.2rem .8rem; border-radius: 1rem; background: var(--bg);
+}
+#typed {
+  min-height: 2.6rem; margin-bottom: .7rem; padding: .4rem .9rem; border-radius: .5rem;
+  background: #0006; font-size: 1.5rem; white-space: pre; overflow: hidden;
+}
+#typed.empty::before { content: "Type with the keys below"; color: var(--dim); }
+#keys { display: grid; grid-template-columns: repeat(10, 1fr); gap: .35rem; }
+.key {
+  height: 3rem; display: flex; align-items: center; justify-content: center;
+  border-radius: .5rem; background: var(--row); font-size: 1.5rem;
+}
+.key.active { color: var(--accent); }
+.key.focus { background: var(--focus); color: var(--focus-text); }
+#hints { margin-top: .6rem; text-align: center; color: var(--dim); font-size: 1rem; }
+
 #osd {
   position: fixed; left: 50%; bottom: 7vh; transform: translateX(-50%);
   display: flex; align-items: center; gap: 1.2rem;

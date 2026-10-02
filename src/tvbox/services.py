@@ -16,7 +16,7 @@ from .bindings import APP_ID, ConfigError
 
 KINDS = ("browser", "native")
 RESERVED_IDS = ("home",)            # the home screen's workspace
-_KEYS = {"id", "name", "kind", "url", "user_agent", "flags", "exec", "color", "pause", "enabled"}
+_KEYS = {"id", "name", "kind", "url", "user_agent", "flags", "exec", "color", "pause", "nav", "enabled"}
 
 
 @dataclass(frozen=True)
@@ -30,6 +30,7 @@ class Service:
     exec: tuple[str, ...] = ()
     color: str = "#3a4658"
     pause: bool = True
+    nav: bool = False               # load the d-pad navigation extension (desktop sites)
 
 
 def _strings(value) -> bool:
@@ -88,8 +89,8 @@ def parse(documents: list[tuple[str, dict]]) -> list[Service]:
         color = entry.get("color", Service.color)
         if not isinstance(color, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
             bad.append('color must look like "#1a2b3c"')
-        if not isinstance(entry.get("pause", True), bool) or not isinstance(entry.get("enabled", True), bool):
-            bad.append("pause and enabled must be true or false")
+        if not all(isinstance(entry.get(k, True), bool) for k in ("pause", "nav", "enabled")):
+            bad.append("pause, nav and enabled must be true or false")
         agent = entry.get("user_agent", "")
         if not isinstance(agent, str):
             bad.append("user_agent must be a string")
@@ -113,7 +114,8 @@ def parse(documents: list[tuple[str, dict]]) -> list[Service]:
             continue
         services[sid] = Service(sid, entry.get("name", sid), kind, url if kind == "browser" else "",
                                 agent, tuple(flags), tuple(command) if kind == "native" else (),
-                                color, entry.get("pause", True))
+                                color, entry.get("pause", True),
+                                kind == "browser" and entry.get("nav", False))
     if errors:
         raise ConfigError(errors)
     ordered = [services[s] for s in dict.fromkeys(order) if s in services]

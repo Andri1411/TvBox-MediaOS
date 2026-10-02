@@ -1,6 +1,6 @@
-// Overlay UI: system menu and OSD. Never has keyboard focus: while the menu
-// is open the hub forwards controller navigation ("nav" messages) and this
-// page keeps track of what is focused.
+// Overlay UI: system menu, on-screen keyboard (keyboard.js) and OSD. Never
+// has keyboard focus: while it is open the hub forwards controller navigation
+// ("nav" messages) and this page keeps track of what is focused.
 'use strict';
 
 const OSD_MS = 1800;
@@ -11,7 +11,7 @@ let osdTimer = null;
 // The shell maps the window only while there is something to show, so the
 // compositor does not blend an empty surface over the video.
 function setVisible() {
-  const visible = !$('menu').hidden || !$('osd').hidden;
+  const visible = !$('menu').hidden || !$('osd').hidden || !$('keyboard').hidden;
   window.webkit?.messageHandlers?.tvbox?.postMessage({ visible });
 }
 
@@ -75,6 +75,8 @@ function pop() {
 function render() {
   const open = state.overlay === 'menu' && views.length > 0;
   $('menu').hidden = !open;
+  $('keyboard').hidden = state.overlay !== 'keyboard';
+  if (state.overlay === 'keyboard') renderKeyboard();
   if (open) {
     const top = views[views.length - 1];
     const view = VIEWS[top.name]();
@@ -91,6 +93,7 @@ function render() {
 }
 
 function nav(button) {
+  if (state.overlay === 'keyboard') { keyboardNav(button); return; }
   if ($('menu').hidden) return;
   const top = views[views.length - 1];
   if (button === 'back') { pop(); return; }
@@ -116,6 +119,7 @@ function showOsd(msg) {
 function onMessage(msg) {
   if (msg.type === 'state') {
     const wasOpen = state.overlay === 'menu' && state.view === msg.view;
+    if (msg.overlay === 'keyboard' && state.overlay !== 'keyboard') resetKeyboard();
     state = msg;
     if (state.overlay === 'menu' && !wasOpen) {
       views = [];

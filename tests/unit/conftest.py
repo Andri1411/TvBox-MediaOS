@@ -53,8 +53,9 @@ class Recorder:
     def nav(self, button):
         self.events.append(f"nav:{button}")
 
-    def click(self, down):
-        self.events.append(f"click:{'down' if down else 'up'}")
+    def click(self, down, button):
+        suffix = "" if button == "left" else f":{button}"
+        self.events.append(f"click:{'down' if down else 'up'}{suffix}")
 
     def take(self):
         events, self.events = self.events, []

@@ -155,11 +155,11 @@ class AppManager:
             await self.pause(previous)
         await self.refresh()
 
-    async def pause(self, service: Service) -> None:
-        """Pause playback in a browser service through its DevTools port."""
+    async def devtools(self, service: Service, method: str, params: dict) -> bool:
+        """Send one DevTools command to every page of a browser service."""
         port = devtools_port(service.id) if service.kind == "browser" else None
         if not port:
-            return
+            return False
         try:
             timeout = aiohttp.ClientTimeout(total=3)
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -167,11 +167,25 @@ class AppManager:
                     pages = [p for p in await reply.json() if p.get("type") == "page"]
                 for page in pages:
                     async with session.ws_connect(page["webSocketDebuggerUrl"]) as ws:
-                        await ws.send_json({"id": 1, "method": "Runtime.evaluate",
-                                            "params": {"expression": PAUSE_JS}})
+                        await ws.send_json({"id": 1, "method": method, "params": params})
                         await ws.receive()
+            return bool(pages)
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError, KeyError) as err:
-            log.debug("pause %s: %s", service.id, err)
+            log.debug("devtools %s %s: %s", service.id, method, err)
+            return False
+
+    async def pause(self, service: Service) -> None:
+        """Pause playback in a browser service."""
+        await self.devtools(service, "Runtime.evaluate", {"expression": PAUSE_JS})
+
+    async def insert_text(self, service: Service | None, text: str) -> bool:
+        """Type text into a browser service's focused field. Done through
+        DevTools because Chromium ignores characters typed through a virtual
+        keyboard whose keymap changes on the fly (how wtype types letters
+        that are not on the layout)."""
+        if not service or service.kind != "browser":
+            return False
+        return await self.devtools(service, "Input.insertText", {"text": text})
 
     # -- housekeeping -------------------------------------------------------
     async def free_memory(self, keep: str | None = None) -> None:

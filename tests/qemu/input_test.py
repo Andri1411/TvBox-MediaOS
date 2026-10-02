@@ -282,7 +282,7 @@ def main():
     navs = [m["button"] for m in daemon.read() if m.get("event") == "nav"]
     got = drain(out, 0.1)
     check("ui mode: navigation goes to the overlay, nothing is typed",
-          navs == ["down", "ok"] and got == [], f"{navs} {got}")
+          navs == ["down", "ok", "start"] and got == [], f"{navs} {got}")
     daemon.call(cmd="mode", mode="app")
 
     ctl = tv("tvbox-ctl", "action", "mouse:toggle")

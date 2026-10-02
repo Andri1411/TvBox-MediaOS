@@ -12,7 +12,10 @@ source=(policy.json tvbox-widevine-update tvbox-widevine.service widevine.hook)
 sha256sums=(SKIP SKIP SKIP SKIP)
 
 package() {
-    local d=$pkgdir
+    local d=$pkgdir src=${TVBOX_SRC:?set by scripts/build-packages.sh}
+    # Our own extensions, loaded unpacked per service (services.toml: nav).
+    install -d "$d/usr/share/tvbox/extensions"
+    cp -r "$src/extensions/tvnav" "$d/usr/share/tvbox/extensions/tvnav"
     # Chromium reads managed policies only from /etc.
     install -Dm644 policy.json            "$d/etc/chromium/policies/managed/tvbox.json"
     install -Dm755 tvbox-widevine-update  "$d/usr/bin/tvbox-widevine-update"

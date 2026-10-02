@@ -1,7 +1,8 @@
 #!/bin/bash
 # Session tests on the installed test VM. A fake Xbox controller is plugged in
 # inside the guest and drives the input daemon (input_test.py), the system
-# menu (menu_test.py) and the home screen and services (launcher_test.py).
+# menu (menu_test.py), the home screen and services (launcher_test.py), and the
+# navigation extension and on-screen keyboard (keyboard_test.py).
 #
 #   tests/qemu/session.sh        needs the disk from `make qemu-install`
 #   PUSH=1 tests/qemu/session.sh first install the packages from build/repo and reboot
@@ -19,6 +20,7 @@ fi
 "$vm" put "$ROOT/tests/qemu/input_test.py" /root/input_test.py
 "$vm" put "$ROOT/tests/qemu/menu_test.py" /root/menu_test.py
 "$vm" put "$ROOT/tests/qemu/launcher_test.py" /root/launcher_test.py
+"$vm" put "$ROOT/tests/qemu/keyboard_test.py" /root/keyboard_test.py
 failed=0
 log "input checks (fake Xbox pad)"
 "$vm" ssh 'cd /root && python input_test.py' || failed=1
@@ -26,6 +28,8 @@ log "system menu checks"
 "$vm" ssh 'cd /root && python menu_test.py' || failed=1
 log "home screen and services checks"
 "$vm" ssh 'cd /root && python launcher_test.py' || failed=1
+log "navigation extension, on-screen keyboard and mouse checks"
+"$vm" ssh 'cd /root && python keyboard_test.py' || failed=1
 "$vm" ssh 'curl -sf -X POST -d "{\"cmd\":\"home\"}" 127.0.0.1:8080/api/cmd >/dev/null'; sleep 2
 
 # A real (QEMU USB) keyboard: its keys are not handled by inputd, sway's

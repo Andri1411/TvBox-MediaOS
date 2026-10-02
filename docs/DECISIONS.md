@@ -234,3 +234,21 @@ as a fault while booted into a snapshot.
   `tvbox-session`'s loop (e.g. `swaymsg exit` with a non-zero code), never by
   restarting greetd. The sway crash above confirmed the loop works: sway
   came back by itself.
+
+### Phase 1 status
+**Tested in QEMU** (`make qemu-install`, clean install from the ISO, all 17
+checks pass): unattended install onto NVMe; btrfs subvolume layout and mounts;
+`/boot` inside `@`; linux-lts boots via GRUB; no failed units; greetd
+auto-login → sway as `tv`; status screen renders; user session target up;
+snapper config; zram; journald limits; suspend disabled; sshd key-only;
+`[tvbox]` repo + key configured; pacman creates pre/post snapshots; snapshots
+appear in GRUB. Booting a snapshot by hand from GRUB was verified separately.
+
+**Not testable in QEMU, needs the real box:** the interactive installer UI
+including Wi-Fi via iwd; UEFI NVRAM behaviour on the real board (the removable
+`BOOTX64.EFI` fallback); Intel GPU with the GLES renderer (QEMU uses pixman);
+HDMI output, 4K scaling and hotplug; Bluetooth; PipeWire HDMI audio; thermals.
+
+**Open for later phases:** automatic boot fallback needs its own GRUB entry
+(Phase 6); `systemd-remount-fs` "fails" when booted into a snapshot (health
+page must not flag it); retry output power-on for HDMI hotplug.

@@ -429,3 +429,13 @@ sway workspaces and Restart app only acts on a `tvbox-app@<id>` unit, both of
 which the launcher provides in Phase 3; Settings is a disabled menu entry;
 `ui:keyboard` shows a "later version" notice (Phase 4); the phone sends
 buttons through the same `button` command the tests use (Phase 5).
+
+### Phase 2 review answers
+- **Back:** B stays Escape globally; browser apps get Alt+Left as a per-app
+  binding when the launcher defines them (Phase 3).
+- **Unbound buttons** (X, stick clicks, right stick outside mouse mode): left
+  unbound until real use shows what is missing. Candidate: X = mouse mode
+  toggle.
+- **Volume:** the box controls its own output volume (triggers, menu, later
+  the phone). This is a requirement, not a convenience: it must keep working
+  for every output, including Bluetooth.

@@ -44,26 +44,68 @@ class Handler(BaseHTTPRequestHandler):
             self.send_file(cached, head)
             return
         try:
+            if path.endswith(CACHEABLE) and not head:
+                self.stream_and_cache(path, cached)
+                return
             with urllib.request.urlopen(self.upstream + path, timeout=60) as resp:
-                if path.endswith(CACHEABLE):
-                    os.makedirs(os.path.dirname(cached), exist_ok=True)
-                    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(cached))
-                    with os.fdopen(fd, "wb") as out:
-                        shutil.copyfileobj(resp, out)
-                    os.replace(tmp, cached)
-                    self.send_file(cached, head)
-                else:
-                    body = resp.read()
-                    self.send_response(200)
-                    self.send_header("Content-Length", str(len(body)))
-                    self.end_headers()
-                    if not head:
-                        self.wfile.write(body)
+                body = resp.read()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if not head:
+                self.wfile.write(body)
         except urllib.error.HTTPError as e:
             self.send_error(e.code)
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             self.log_message("upstream error for %s: %s", path, e)
-            self.send_error(502)
+            try:
+                self.send_error(502)
+            except OSError:
+                pass
+
+    def stream_and_cache(self, path, cached):
+        """Send the file to the client while it downloads (so pacman's stall
+        timeout never fires) and resume the upstream download with Range
+        requests when the connection is reset."""
+        os.makedirs(os.path.dirname(cached), exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(cached))
+        done, total, attempts, started = 0, None, 0, False
+        client_ok = True
+        try:
+            with os.fdopen(fd, "wb") as out:
+                while total is None or done < total:
+                    req = urllib.request.Request(self.upstream + path)
+                    if done:
+                        req.add_header("Range", f"bytes={done}-")
+                    try:
+                        with urllib.request.urlopen(req, timeout=60) as resp:
+                            if total is None:
+                                total = int(resp.headers["Content-Length"])
+                                self.send_response(200)
+                                self.send_header("Content-Length", str(total))
+                                self.end_headers()
+                                started = True
+                            elif resp.status != 206:
+                                raise OSError("upstream ignored Range request")
+                            while chunk := resp.read(1 << 16):
+                                out.write(chunk)
+                                done += len(chunk)
+                                if client_ok:
+                                    try:
+                                        self.wfile.write(chunk)
+                                    except OSError:
+                                        client_ok = False  # keep filling the cache
+                    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+                        if isinstance(e, urllib.error.HTTPError) and not started:
+                            raise
+                        attempts += 1
+                        if attempts > 8:
+                            raise
+                        self.log_message("retry %d for %s at byte %d: %s", attempts, path, done, e)
+            os.replace(tmp, cached)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
 
     def send_file(self, file, head):
         self.send_response(200)

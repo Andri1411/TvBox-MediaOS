@@ -39,7 +39,10 @@ serial() {
 }
 fail() {
     log "FAILED: $*"
-    if ((AUTO)); then serial "FAILED"; sleep 2; systemctl poweroff; fi
+    if ((AUTO)); then
+        tail -n 40 "$LOG" | while IFS= read -r line; do serial "log: $line"; done
+        serial "FAILED"; sleep 2; systemctl poweroff
+    fi
     dialog --title "$TITLE" --msgbox "Installation failed:\n\n$*\n\nDetails: $LOG\nPress Enter for a shell." 14 70 || true
     exit 1
 }

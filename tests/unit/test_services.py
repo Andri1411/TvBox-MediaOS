@@ -136,3 +136,36 @@ def test_unit_of_pid(tmp_path, monkeypatch):
     assert apps._UNIT_RE.search(
         "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-tvbox\\x2dapp.slice/"
         "tvbox-app@youtube.service").group(1) == "youtube"
+
+
+def test_low_memory_stops_least_recently_used_background_apps(monkeypatch):
+    import asyncio
+
+    class FakeHub:
+        app = "netflix"                     # focused: never stopped
+
+    stopped = []
+    memory = iter([500_000, 900_000, 2_000_000])        # kB available before each stop
+
+    async def fake_run(*argv, **_kwargs):
+        if argv[2] == "stop":
+            stopped.append(argv[3])
+        return 0, ""
+
+    async def no_sleep(_seconds):
+        pass
+
+    manager = apps.AppManager.__new__(apps.AppManager)
+    manager.hub, manager.services, manager.errors = FakeHub(), [], []
+    manager.active = dict.fromkeys(["youtube", "netflix", "disney", "jellyfin"], "running")
+    manager.last_used = {"youtube": 30.0, "netflix": 40.0, "disney": 10.0, "jellyfin": 20.0}
+
+    async def keep_active():
+        pass
+    monkeypatch.setattr(manager, "refresh", keep_active)
+    monkeypatch.setattr(apps, "run", fake_run)
+    monkeypatch.setattr(apps, "available_kb", lambda: next(memory))
+    monkeypatch.setattr(apps.asyncio, "sleep", no_sleep)
+    asyncio.run(manager.free_memory(keep="youtube"))
+    # oldest first, stops as soon as enough memory is free, never the focused or the new app
+    assert stopped == ["tvbox-app@disney.service", "tvbox-app@jellyfin.service"]

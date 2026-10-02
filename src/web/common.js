@@ -22,9 +22,10 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// onMessage(msg) for every hub message; onDrop() when the hub goes away.
-function connect(onMessage, onDrop) {
-  ws = new WebSocket(`ws://${location.host}/ws`);
+// role: "overlay" or "home". onMessage(msg) for every hub message; onDrop()
+// when the hub goes away.
+function connect(role, onMessage, onDrop) {
+  ws = new WebSocket(`ws://${location.host}/ws?role=${role}`);
   ws.onopen = () => {
     // The hub came back, possibly as a new version: start from a fresh page.
     if (everConnected) location.reload();
@@ -34,7 +35,7 @@ function connect(onMessage, onDrop) {
   ws.onclose = () => {
     state = {};
     onDrop();
-    setTimeout(() => connect(onMessage, onDrop), 1000);
+    setTimeout(() => connect(role, onMessage, onDrop), 1000);
   };
 }
 

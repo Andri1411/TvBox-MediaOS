@@ -84,7 +84,7 @@ class Hub:
         self.config_errors: list[str] = []
         self.input_connected = False
         self._input: asyncio.StreamWriter | None = None
-        self._clients: set[web.WebSocketResponse] = set()
+        self._clients: dict[web.WebSocketResponse, str] = {}    # -> role: overlay | home
         self._volume_pending = 0
         self._volume_task: asyncio.Task | None = None
         self._tasks: set[asyncio.Task] = set()
@@ -107,6 +107,9 @@ class Hub:
     async def _send_one(self, ws: web.WebSocketResponse, message: dict) -> None:
         with contextlib.suppress(ConnectionError, RuntimeError):
             await ws.send_json(message)
+
+    def has_overlay(self) -> bool:
+        return "overlay" in self._clients.values()
 
     def push_state(self) -> None:
         self.send(self.state())
@@ -196,10 +199,10 @@ class Hub:
 
     # -- overlay ------------------------------------------------------------
     async def open_overlay(self, view: str) -> None:
-        if not self._clients:
-            # Without the shell nothing would be drawn, and ui mode would
-            # swallow the controller: stay in app mode.
-            log.warning("system menu requested but tvbox-shell is not connected")
+        if not self.has_overlay():
+            # Without the overlay page nothing would be drawn, and ui mode
+            # would swallow the controller: stay in app mode.
+            log.warning("system menu requested but the shell's overlay is not connected")
             return
         self.overlay, self.view = "menu", view
         self.input_send(cmd="mode", mode="ui")
@@ -279,7 +282,8 @@ class Hub:
                 raise ValueError(f"scale must be one of {', '.join(SCALES)}")
             display_conf().parent.mkdir(parents=True, exist_ok=True)
             display_conf().write_text(f"scale={scale}\n")
-            await audio.run("tvbox-display", "apply")
+            # Our own $SWAYSOCK is stale once sway has been restarted.
+            await audio.run("tvbox-display", "apply", env={"SWAYSOCK": sway.socket_path() or ""})
             self.push_state()
         elif cmd == "volume":
             delta = int(msg["delta"])
@@ -343,7 +347,7 @@ class Hub:
     async def ws_handler(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse(heartbeat=20)
         await ws.prepare(request)
-        self._clients.add(ws)
+        self._clients[ws] = request.query.get("role", "")
         await ws.send_json(self.state())
         try:
             async for message in ws:
@@ -354,13 +358,13 @@ class Hub:
                 except (ValueError, KeyError, TypeError) as err:
                     await ws.send_json({"type": "error", "error": str(err)})
         finally:
-            self._clients.discard(ws)
-            if not self._clients:
+            self._clients.pop(ws, None)
+            if not self.has_overlay():
                 await self.close_overlay()      # nobody left to draw the menu
         return ws
 
     async def api_state(self, _request: web.Request) -> web.Response:
-        return web.json_response(self.state() | {"ui_clients": len(self._clients)})
+        return web.json_response(self.state() | {"ui_clients": sorted(self._clients.values())})
 
     async def api_cmd(self, request: web.Request) -> web.Response:
         try:

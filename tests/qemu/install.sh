@@ -104,7 +104,7 @@ check "/boot is inside @"           '[ "$(findmnt -no SOURCE --target /boot)" = 
 check "linux-lts running"           'uname -r | grep -q lts'
 check "no failed units"             'systemctl --failed --no-legend | grep . && exit 1 || true'
 check "greetd + sway session as tv" 'pgrep -u tv -x sway'
-check "home screen is up"            'for i in $(seq 30); do curl -sf 127.0.0.1:8080/api/state | grep -q "\"ui_clients\": 2" && exit 0; sleep 2; done; exit 1'
+check "home screen is up"            'for i in $(seq 30); do curl -sf 127.0.0.1:8080/api/state | grep -q "\"ui_clients\": \[\"home\", \"overlay\"\]" && exit 0; sleep 2; done; exit 1'
 check "sway responds over IPC"      'sudo -u tv env XDG_RUNTIME_DIR=/run/user/$(id -u tv) sh -c "swaymsg -s \$(ls \$XDG_RUNTIME_DIR/sway-ipc.*.sock | head -1) -t get_outputs" | grep -q "\"active\": true"'
 check "user services started"       'systemctl --user -M tv@ is-active tvbox-session.target'
 check "snapper config"              'snapper -c root list >/dev/null'
@@ -124,9 +124,17 @@ check "virtual input device present" 'grep -q "tvbox virtual input" /proc/bus/in
 check "xpadneo module built by DKMS" 'dkms status | grep -q "hid-xpadneo.*installed"'
 check "system menu opens and closes" \
     'api() { curl -sf -X POST -d "$1" 127.0.0.1:8080/api/cmd >/dev/null; }; state() { curl -sf 127.0.0.1:8080/api/state; };
-     for i in $(seq 30); do state | grep -q "\"ui_clients\": [1-9]" && break; sleep 1; done;
+     for i in $(seq 30); do state | grep -q "\"overlay\"\]" && break; sleep 1; done;
      api "{\"cmd\":\"action\",\"action\":\"ui:system_menu\"}" && sleep 1 && state | grep -q "\"overlay\": \"menu\"" &&
      api "{\"cmd\":\"close\"}" && state | grep -q "\"overlay\": null"'
+
+# Phase 3: launcher, browser, Jellyfin (details: tests/qemu/session.sh)
+check "default services on the home screen" \
+    'curl -sf 127.0.0.1:8080/api/state | python -c "import json,sys; ids=[s[\"id\"] for s in json.load(sys.stdin)[\"services\"]]; sys.exit(ids != [\"youtube\",\"netflix\",\"disney\",\"floatplane\",\"jellyfin\"])"'
+check "browser, policies and Jellyfin client installed" \
+    'chromium --version >/dev/null && test -f /etc/chromium/policies/managed/tvbox.json && command -v jellyfin-desktop >/dev/null'
+check "Widevine fetch set up" \
+    'systemctl is-enabled -q tvbox-widevine.service && { test -f /var/lib/tvbox/WidevineCdm/manifest.json || systemctl is-active tvbox-widevine.service | grep -qE "activating|active"; }'
 
 $qmp screendump "$state/screen.png" && log "screenshot: $state/screen.png"
 ((failed == 0)) || die "some checks failed"

@@ -136,4 +136,4 @@ document.addEventListener('keydown', (event) => {
 });
 tick();
 setInterval(tick, 10000);
-connect(onMessage, render);
+connect('home', onMessage, render);

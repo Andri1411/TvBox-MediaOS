@@ -131,4 +131,4 @@ function onMessage(msg) {
   }
 }
 
-connect(onMessage, () => { views = []; render(); });
+connect('overlay', onMessage, () => { views = []; render(); });

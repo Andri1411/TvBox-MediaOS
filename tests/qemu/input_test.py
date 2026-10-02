@@ -1,5 +1,5 @@
 #!/usr/bin/python
-"""Runs inside the test VM as root (see tests/qemu/input.sh).
+"""Runs inside the test VM as root (see tests/qemu/session.sh).
 
 Plugs in a fake Xbox controller through uinput (same name, ids and
 capabilities as the kernel's xpad driver reports) and checks what

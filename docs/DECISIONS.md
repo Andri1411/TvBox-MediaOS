@@ -203,3 +203,12 @@ dependency tree (kernel, mesa, ...) into the builder. AUR packages still use
 - **sway output power on right after power off** failed once with "Backend
   commit failed" in QEMU and worked on retry. To keep in mind for HDMI
   hotplug handling (Phase 6): retry output re-enable.
+- **`grub-reboot` into a grub-btrfs snapshot entry:** GRUB follows
+  `next_entry` into the "snapshots" submenu but stops there and waits for a
+  key. grub-btrfs loads its menu with `configfile`, and GRUB doesn't carry the
+  default entry or the timeout into configfile menus. Manual selection with a
+  keyboard works. **Consequence for the automatic boot fallback (Phase 6):** it
+  cannot point at grub-btrfs entries. tvbox will generate its own top-level
+  menuentry, with a fixed ID, for the recorded fallback snapshot
+  (`/etc/grub.d/` script reading grubenv), and use that for both the
+  automatic fallback and "boot into snapshot once" from the TV menu.

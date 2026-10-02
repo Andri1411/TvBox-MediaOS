@@ -389,7 +389,9 @@ snapshot from the boot menu with the controller" is not achievable. Proposal:
 2. If GRUB starts and `boot_pending` is still set (the last boot never got
    healthy) twice in a row, it boots the snapshot recorded as the update
    fallback automatically, after showing the menu for a while (a keyboard
-   still works there).
+   still works there). This uses a tvbox-generated top-level GRUB entry with
+   a fixed ID, not grub-btrfs's submenu: GRUB can't select entries inside
+   grub-btrfs's `configfile` menu unattended (found in Phase 1 testing).
 3. Booted into a snapshot, the TV shows "Started from the backup made before
    the update on <date>" with *Keep this (roll back permanently)* / *Try the
    update again*, operable with the controller.

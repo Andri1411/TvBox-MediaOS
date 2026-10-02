@@ -104,7 +104,7 @@ check "/boot is inside @"           '[ "$(findmnt -no SOURCE --target /boot)" = 
 check "linux-lts running"           'uname -r | grep -q lts'
 check "no failed units"             'systemctl --failed --no-legend | grep . && exit 1 || true'
 check "greetd + sway session as tv" 'pgrep -u tv -x sway'
-check "status screen rendered"      'for i in $(seq 30); do [ -s /run/user/$(id -u tv)/tvbox-status.png ] && exit 0; sleep 2; done; exit 1'
+check "home screen is up"            'for i in $(seq 30); do curl -sf 127.0.0.1:8080/api/state | grep -q "\"ui_clients\": 2" && exit 0; sleep 2; done; exit 1'
 check "sway responds over IPC"      'sudo -u tv env XDG_RUNTIME_DIR=/run/user/$(id -u tv) sh -c "swaymsg -s \$(ls \$XDG_RUNTIME_DIR/sway-ipc.*.sock | head -1) -t get_outputs" | grep -q "\"active\": true"'
 check "user services started"       'systemctl --user -M tv@ is-active tvbox-session.target'
 check "snapper config"              'snapper -c root list >/dev/null'

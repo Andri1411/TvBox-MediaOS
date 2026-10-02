@@ -1,0 +1,14 @@
+[Unit]
+Description=tvbox app %i
+# Apps are Wayland clients of the session and go away with it.
+PartOf=tvbox-session.target
+After=tvbox-hub.service
+
+[Service]
+ExecStart=/usr/bin/tvbox-app %i
+# A crashed app comes back by itself; one that was closed stays closed.
+Restart=on-failure
+RestartSec=2
+# Browsers exit non-zero when asked to stop; that is not a crash.
+SuccessExitStatus=SIGTERM 143
+TimeoutStopSec=10

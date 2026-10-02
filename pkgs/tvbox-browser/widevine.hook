@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = chromium
+
+[Action]
+Description = Refreshing the Widevine module...
+When = PostTransaction
+# A failed download must not fail the update; the old module keeps working.
+Exec = /usr/bin/sh -c '/usr/bin/tvbox-widevine-update || echo "tvbox: Widevine not refreshed, run tvbox-widevine-update later"'

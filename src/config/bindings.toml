@@ -59,9 +59,13 @@ mute     = "volume:mute"
 y    = "ui:keyboard"
 view = "ui:app_switcher"
 
-# Per-app bindings: [app.<id>], ids as in services.toml. Example:
-# [app.youtube]
-# start = "key:k"
+# Per-app bindings: [app.<id>], ids as in services.toml.
+# Desktop sites: B is the browser's Back.
+[app.netflix]
+back = "key:alt+Left"
+
+[app.disney]
+back = "key:alt+Left"
 
 # Devices are recognised automatically (gamepads; remotes = arrow keys + OK
 # without a full keyboard). A real keyboard is left alone. To treat a

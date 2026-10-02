@@ -1,0 +1,15 @@
+[Unit]
+Description=Fetch the Widevine module for the browser (first boot)
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=!/var/lib/tvbox/WidevineCdm/manifest.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/tvbox-widevine-update
+# No network yet, or Google unreachable: keep trying.
+Restart=on-failure
+RestartSec=120
+
+[Install]
+WantedBy=multi-user.target

@@ -29,6 +29,9 @@ setup_local_repo() {
     [[ -f $local_db ]] || repo-add -q "$local_db"
     printf '\n[_buildlocal]\nSigLevel = Optional TrustAll\nServer = file://%s\n' "$out" \
         | sudo tee -a /etc/pacman.conf >/dev/null
+    # pacman refuses to install build dependencies while a configured repo
+    # has no synced database.
+    sudo pacman -Sy --noconfirm >/dev/null
 }
 register_built() {
     local f
@@ -41,6 +44,8 @@ build_dir() {  # build_dir <dir-with-PKGBUILD> [extra makepkg args]
     shift
     before=$(ls "$out")
     (cd "$dir" && makepkg "${makepkg_args[@]}" "$@")
+    # Split debug packages (AUR builds) have no place on the box.
+    rm -f "$out"/*-debug-*.pkg.tar.*
     after=$(ls "$out")
     mapfile -t new < <(comm -13 <(echo "$before") <(echo "$after") | grep -E '\.pkg\.tar\.[a-z]+$' || true)
     ((${#new[@]})) && register_built "${new[@]/#/$out/}"
@@ -52,12 +57,20 @@ build_aur() {  # build_aur <name> <commit>
     if [[ ! -d $dir/.git ]]; then
         git clone -q "https://aur.archlinux.org/$name.git" "$dir"
     fi
+    # Already built from this pin (local rebuilds; CI starts empty): keep it.
+    local stamp="$out/.aur-$name"
+    if [[ $(cat "$stamp" 2>/dev/null) == "$commit" ]] && compgen -G "$out/$name-[0-9]*.pkg.tar.zst" >/dev/null; then
+        log "AUR $name @ ${commit:0:10} (already built)"
+        return 0
+    fi
     git -C "$dir" fetch -q origin
     git -C "$dir" checkout -q --detach "$commit"
     log "AUR $name @ ${commit:0:10}"
+    rm -f "$out/$name"-[0-9]*.pkg.tar.zst*
     # --nocheck: check() suites pull in heavy dependencies (xpadneo's wants
     # kernel headers to test-build the module; DKMS builds it on the box).
     build_dir "$dir" --syncdeps --needed --nocheck
+    echo "$commit" > "$stamp"
 }
 
 wanted() {  # wanted <name>: true if no filter was given or name is in it

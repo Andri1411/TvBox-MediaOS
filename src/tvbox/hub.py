@@ -30,6 +30,7 @@ log = setup_logging("hub")
 PORT = 8080
 HOME_WORKSPACE = "home"
 SWAY_UI_MODE = "tvbox-ui"                # binding mode defined in the sway config
+PORT_KEY = web.AppKey("port", int)
 
 
 def data_dir() -> Path:
@@ -256,7 +257,8 @@ class Hub:
             if not sway_safe(app):
                 raise ValueError(f"bad app id {app!r}")
             await self.close_overlay()
-            await self.sway_command(f"workspace {app}")
+            if await self.sway_command(f"workspace {app}"):
+                self.osd(kind="message", text=next((a["name"] for a in self.apps if a["id"] == app), app))
         elif cmd == "volume":
             delta = int(msg["delta"])
             if not -100 <= delta <= 100:
@@ -338,9 +340,10 @@ class Hub:
         except (ValueError, KeyError, TypeError) as err:
             return web.json_response({"ok": False, "error": str(err)}, status=400)
 
-    def app_factory(self) -> web.Application:
+    def app_factory(self, port: int = PORT) -> web.Application:
         webroot = data_dir() / "web"
-        app = web.Application()
+        app = web.Application(middlewares=[local_only])
+        app[PORT_KEY] = port
 
         async def overlay(_request):
             return web.FileResponse(webroot / "overlay.html")
@@ -350,7 +353,7 @@ class Hub:
         return app
 
     async def run(self, host: str = "127.0.0.1", port: int = PORT) -> None:
-        runner = web.AppRunner(self.app_factory(), access_log=None)
+        runner = web.AppRunner(self.app_factory(port), access_log=None)
         await runner.setup()
         await web.TCPSite(runner, host, port).start()
         self._spawn(self.input_link())
@@ -365,6 +368,19 @@ class Hub:
                 await asyncio.sleep(interval or 3600)
         finally:
             await runner.cleanup()
+
+
+@web.middleware
+async def local_only(request: web.Request, handler):
+    """Loopback is not the same as trusted: a web page running in one of the
+    box's own browsers can also send requests to 127.0.0.1. Requests naming
+    another origin (cross-site fetch, WebSocket) or another host (DNS
+    rebinding) are refused; the shell's own page and curl pass."""
+    allowed = {f"{h}:{request.app[PORT_KEY]}" for h in ("127.0.0.1", "localhost")}
+    origin = request.headers.get("Origin")
+    if request.host not in allowed or (origin and origin.split("://", 1)[-1] not in allowed):
+        raise web.HTTPForbidden(text="tvbox-hub: request from a foreign origin refused\n")
+    return await handler(request)
 
 
 def sway_safe(name: str) -> bool:

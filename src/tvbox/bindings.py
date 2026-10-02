@@ -29,7 +29,7 @@ BUTTONS = (
 PROFILES = ("gamepad", "remote", "ignore")
 UI_ACTIONS = ("home", "system_menu", "keyboard", "app_switcher", "back")
 MENU_ACTION = "ui:system_menu"
-_APP_ID = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+APP_ID = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
 class ConfigError(Exception):
@@ -124,7 +124,7 @@ def parse_action(text: str) -> Action | None:
             raise ValueError(f"unknown mouse action {arg!r} (only toggle)")
     elif kind == "app":
         launch = arg.removeprefix("launch:")
-        if arg != "restart" and not (arg.startswith("launch:") and _APP_ID.match(launch)):
+        if arg != "restart" and not (arg.startswith("launch:") and APP_ID.match(launch)):
             raise ValueError(f"app wants restart or launch:<id>, got {arg!r}")
     else:
         raise ValueError(f"unknown action type {kind!r} in {text!r}")
@@ -241,7 +241,7 @@ def parse(documents: list[tuple[str, dict]]) -> Config:
             errs.append("[app]: must be a table of [app.<id>] sections")
             app_tables = {}
         for app, table in app_tables.items():
-            if not _APP_ID.match(app):
+            if not APP_ID.match(app):
                 errs.append(f"[app.{app}]: app ids are lowercase letters, digits, - and _")
                 continue
             apps.setdefault(app, {}).update(_parse_table(table, f"[app.{app}]", errs))

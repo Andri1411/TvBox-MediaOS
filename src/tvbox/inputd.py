@@ -294,6 +294,10 @@ class InputDaemon:
 
     def _close_devices(self) -> None:
         for entry in list(self._devices.values()):
+            # Close right away, not when the cancelled task gets to run: the
+            # grab has to be gone before the rescan opens the device again.
+            with contextlib.suppress(OSError):
+                entry["dev"].close()
             entry["task"].cancel()
         self._devices.clear()
 
@@ -365,7 +369,7 @@ class InputDaemon:
 
     def _set_app(self, workspace: str | None) -> None:
         # One workspace per app, named after the service id.
-        app = workspace if workspace and bindings._APP_ID.match(workspace) else None
+        app = workspace if workspace and bindings.APP_ID.match(workspace) else None
         if app != self.engine.app:
             self.engine.set_app(app)
             self.broadcast({"event": "focus", "app": app})
@@ -401,14 +405,14 @@ class InputDaemon:
         writer.write(json.dumps(self.status("hello")).encode() + b"\n")
         try:
             while line := await reader.readline():
-                reply: dict = {"ok": True}
+                msg, reply = {}, {"ok": True}
                 try:
-                    msg = json.loads(line)
-                    if not isinstance(msg, dict):
+                    parsed = json.loads(line)
+                    if not isinstance(parsed, dict):
                         raise ValueError("expected a JSON object")
+                    msg = parsed
                     reply.update(self.handle(msg) or {})
                 except (ValueError, KeyError, TypeError) as err:
-                    msg = msg if isinstance(locals().get("msg"), dict) else {}
                     reply = {"ok": False, "error": str(err)}
                 if "id" in msg:
                     writer.write(json.dumps({"reply": msg["id"], **reply}).encode() + b"\n")

@@ -334,10 +334,17 @@ page in WebKitGTK. The page tells the shell when it has something to show
 transparent fullscreen surface over the video all day and can scan the video
 out directly. The page keeps its WebSocket while unmapped.
 
-### Hub listens on loopback only for now
+### Hub listens on loopback only for now, and loopback is not trusted blindly
 `127.0.0.1:8080` until the phone remote brings token authentication
 (Phase 5). The QEMU port forward to 8080 therefore answers nothing yet; tests
 talk to the hub over SSH.
+
+A web page running in one of the box's own browsers can also send requests to
+127.0.0.1 (a cross-site POST, or a WebSocket, which no CORS rule stops). The
+hub therefore refuses any request whose `Origin` is not its own or whose
+`Host` is not `127.0.0.1`/`localhost` (DNS rebinding). Otherwise an ad on a
+streaming site could reboot the box. Phase 5 must keep this check when it
+adds the LAN listener.
 
 ### Volume
 `wpctl` on `@DEFAULT_AUDIO_SINK@`, capped at 100 % (`-l 1.0`). Trigger
@@ -392,7 +399,7 @@ in the VM, also with a root SSH session open).
 
 ### Phase 2 status
 **Tested in QEMU.** `make qemu-install` (clean install, 21 checks) and
-`make qemu-input` (72 checks) pass. The input test plugs a fake Xbox
+`make qemu-input` (72 checks) pass, from a freshly built ISO. The input test plugs a fake Xbox
 controller into the guest through uinput, with the name, IDs and capabilities
 the kernel's `xpad` driver reports, and reads what comes out of the virtual
 input device:

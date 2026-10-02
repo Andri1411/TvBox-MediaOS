@@ -188,13 +188,11 @@ dependency tree (kernel, mesa, ...) into the builder. AUR packages still use
   fw_cfg answers. This is useful anyway: repeat test installs no longer download ~1 GB.
   The installer's online check now probes the first configured mirror instead
   of a hard-coded host.
-- **foot as the placeholder screen in QEMU:** under TCG (software CPU
-  emulation), foot drew its background but no glyphs, whatever the font, the
-  render threads or pixman's SIMD paths. Offscreen text via pango/cairo
-  renders fine, and the screen updates normally. Not chased further: foot is
-  only a debugging terminal, and the placeholder now renders its status text
-  with `pango-view` and shows it as the sway background. To re-check on real
-  hardware.
+- **foot as the placeholder screen in QEMU:** under TCG, foot drew its
+  background but no glyphs. The cause turned out to be Mesa's llvmpipe (see
+  below): with the pixman renderer in VMs, foot renders text normally. The
+  placeholder still uses `pango-view` + the sway background, which is simpler
+  than a terminal for a static status screen.
 - **Leaving the embedded repo's sync db on the installed system:** a local
   (unsigned) dev ISO left `/var/lib/pacman/sync/tvbox.db` behind, and with
   `SigLevel = Required` every pacman operation then failed with "missing

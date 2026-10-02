@@ -1,0 +1,12 @@
+[Unit]
+Description=tvbox shell (on-screen menu and OSD)
+PartOf=tvbox-session.target
+After=tvbox-hub.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/tvbox-shell
+Restart=always
+RestartSec=2
+WatchdogSec=60

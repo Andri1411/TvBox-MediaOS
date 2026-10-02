@@ -4,6 +4,7 @@
 #
 #   tests/qemu/vm.sh up              boot headless, wait for SSH and the session
 #   tests/qemu/vm.sh push            install the packages from build/repo (pacman -U)
+#   tests/qemu/vm.sh reboot          reboot and wait until the session is back
 #   tests/qemu/vm.sh ssh [cmd...]    run a command as root (no cmd: shell)
 #   tests/qemu/vm.sh tv <cmd...>     run a command as the tv user inside its session
 #   tests/qemu/vm.sh put <file> <remote-path>
@@ -30,7 +31,9 @@ case $cmd in
         if running; then
             log "VM already running"
         else
+            # A sound card with no host backend, so the guest has an audio sink.
             QEMU_STATE_DIR=$state QEMU_DISPLAY=${QEMU_DISPLAY:-none} \
+                QEMU_AUDIO=${QEMU_AUDIO:-1} QEMU_AUDIODEV=${QEMU_AUDIODEV:-none} \
                 setsid "$ROOT/scripts/qemu.sh" disk >"$state/qemu-boot.out" 2>&1 &
         fi
         # The test install points the VM's Arch mirrorlist at this cache.
@@ -63,6 +66,17 @@ case $cmd in
                 pacman --config /tmp/pacman-notvbox.conf -U --noconfirm /tmp/push/*.pkg.tar.zst' \
             | tail -n 15 >&2
         ;;
+    reboot)
+        before=$(ssh_vm 'cat /proc/sys/kernel/random/boot_id')
+        ssh_vm 'systemctl reboot' || true
+        deadline=$((SECONDS + ${BOOT_TIMEOUT:-600}))
+        until after=$(ssh_vm 'cat /proc/sys/kernel/random/boot_id' 2>/dev/null) && [[ $after != "$before" ]]; do
+            ((SECONDS < deadline)) || die "VM did not come back after reboot"
+            sleep 2
+        done
+        for _ in $(seq 60); do ssh_vm 'pgrep -u tv -x sway' >/dev/null 2>&1 && break; sleep 2; done
+        log "VM rebooted"
+        ;;
     ssh)  ssh_vm "$@" ;;
     tv)
         # Same environment as the tv user's session services. ssh joins its
@@ -81,5 +95,5 @@ case $cmd in
         pkill -f "mirror-cache.py --port $mirror_port" || true
         log "VM down"
         ;;
-    *) die "usage: $0 up | push | ssh [cmd] | tv <cmd> | put <file> <path> | shot <png> | down" ;;
+    *) die "usage: $0 up | push | reboot | ssh [cmd] | tv <cmd> | put <file> <path> | shot <png> | down" ;;
 esac

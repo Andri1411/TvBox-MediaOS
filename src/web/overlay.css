@@ -1,0 +1,59 @@
+/* Overlay drawn above the running app: system menu and OSD.
+   Sized in rem with the root tied to the screen height, so it looks the same
+   at 1080p and 4K and stays readable from the couch. */
+:root {
+  --bg: #12161cf2;
+  --row: #ffffff0f;
+  --text: #e6ebf2;
+  --dim: #8f9bab;
+  --focus: #f2f5f9;
+  --focus-text: #10141a;
+  --accent: #5fb4ff;
+  --warn: #ffb454;
+  font-size: 2.2vh;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: transparent; color: var(--text);
+  font-family: "Noto Sans", sans-serif;
+}
+[hidden] { display: none !important; }
+
+#menu { position: fixed; inset: 0; background: #0009; }
+#panel {
+  position: absolute; top: 0; bottom: 0; left: 0; width: 30rem;
+  padding: 2.2rem 2rem 1.5rem; background: var(--bg);
+  display: flex; flex-direction: column;
+}
+#title { margin: 0 0 1.1rem 1rem; font-size: 1.8rem; font-weight: 600; }
+/* long lists scroll; the focused row is kept in view by overlay.js */
+#items { list-style: none; margin: 0; padding: 0; overflow: hidden; flex: 0 1 auto; min-height: 0; }
+#items li {
+  display: flex; align-items: center; gap: 1rem;
+  margin-bottom: .4rem; padding: .5rem 1rem; border-radius: .6rem;
+  font-size: 1.35rem; background: var(--row);
+}
+#items li .label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#items li .value { color: var(--dim); max-width: 55%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#items li.disabled .label { color: var(--dim); }
+#items li.focus { background: var(--focus); color: var(--focus-text); }
+#items li.focus .label, #items li.focus .value { color: var(--focus-text); }
+#items li.focus.disabled .label { color: #5a6573; }
+
+.bar { display: inline-block; vertical-align: middle; margin-right: .6rem; width: 9rem; height: .55rem; border-radius: .3rem; background: #8f9bab55; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); }
+.muted .bar > i { background: var(--dim); }
+
+#notice { margin: 1rem 0 0; padding: .8rem 1rem; border-radius: .6rem; font-size: 1.05rem;
+  background: #ffb45422; color: var(--warn); overflow-wrap: anywhere; }
+#footer { margin-top: auto; padding: .8rem 1rem 0; color: var(--dim); font-size: 1.05rem; }
+
+#osd {
+  position: fixed; left: 50%; bottom: 7vh; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 1.2rem;
+  padding: 1rem 1.8rem; border-radius: 1rem; background: var(--bg);
+  font-size: 1.5rem; max-width: 80vw;
+}
+#osd .bar { width: 18rem; height: .7rem; margin: 0; }
+#osd .num { min-width: 3.2rem; text-align: right; font-variant-numeric: tabular-nums; }

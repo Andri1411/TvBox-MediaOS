@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 import evdev
@@ -134,6 +135,17 @@ def drain(dev, seconds=0.3):
     return out
 
 
+def close_menu(daemon):
+    """Ask the hub (if it runs) to close the system menu again."""
+    request = urllib.request.Request("http://127.0.0.1:8080/api/cmd", data=b'{"cmd": "close"}')
+    try:
+        urllib.request.urlopen(request, timeout=5).close()
+    except OSError:
+        pass
+    daemon.wait_status(lambda s: s["mode"] == "app", 5)
+    daemon.read(0.2)
+
+
 def tapped(key):
     return [f"{key}:1", f"{key}:0"]
 
@@ -200,6 +212,7 @@ def main():
     got += actions(daemon.read())
     check("Xbox button long = system menu, while still held",
           early == [] and got == ["ui:system_menu"], f"{early} {got}")
+    close_menu(daemon)          # the hub has opened it; menu_test.py covers the menu itself
 
     pad.axis(e.ABS_RZ, 1023)
     pad.axis(e.ABS_Z, 1023)

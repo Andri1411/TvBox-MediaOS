@@ -29,6 +29,7 @@ def test_default_services_from_the_brief():
     assert "SmartTV" in youtube.user_agent              # preset name resolved
     assert found[1].user_agent == ""                    # Netflix: the browser's own
     assert jellyfin.kind == "native" and jellyfin.exec[0] == "jellyfin-desktop"
+    assert [s.id for s in found if s.nav] == ["netflix", "disney"]
 
 
 def test_add_change_remove_reorder_without_touching_code():
@@ -98,6 +99,9 @@ def test_browser_command_line(tmp_path, monkeypatch):
     assert any(a.startswith("--user-agent=") and "SmartTV" in a for a in argv)
     assert any(a.startswith("--enable-features=") and "AcceleratedVideoDecodeLinuxGL" in a for a in argv)
     assert not any(a.startswith("--user-agent") for a in app.browser_argv(netflix, tmp_path))
+    assert not any(a.startswith("--load-extension") for a in argv)
+    assert any(a.startswith("--load-extension=") and a.endswith("/extensions/tvnav")
+               for a in app.browser_argv(netflix, tmp_path))
     custom = services.parse([BASE, ("u", tomllib.loads(
         '[[service]]\nid = "netflix"\nflags = ["--force-dark-mode"]'))])[1]
     assert app.browser_argv(custom, tmp_path)[-2:] == ["--force-dark-mode", "https://www.netflix.com/browse"]

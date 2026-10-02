@@ -31,6 +31,8 @@ PAGE = '''<!doctype html><title>tvbox nav test</title>
 div[role=button]{width:220px;height:90px;margin:20px;background:#456}</style>
 <div><button id="b1">1</button><button id="b2">2</button><button id="b3" disabled>3</button></div>
 <div style="display:flex"><button id="b4">4</button><button id="b5">5</button><div id="d6" role="button" tabindex="0">6</div></div>
+<div id="dialog" role="dialog" style="position:fixed;right:20px;top:20px;width:260px;background:#789">
+  <button id="ok-dialog" onclick="this.parentNode.remove()">OK</button></div>
 <form onsubmit="submitted = field.value; return false"><input id="field" style="width:400px;height:50px;margin:20px"></form>
 <script>
 var clicks = [], submitted = null;
@@ -69,23 +71,29 @@ def main():
     try:
         api(cmd="launch", id="navtest")
         ready = wait_for(lambda: windows().get("navtest") == ["tvbox-navtest"]
-                         and cdp("navtest", "document.readyState") == "complete", 60)
-        check("nav service: page loaded", bool(ready), str(windows()))
+                         and cdp("navtest", "document.readyState") == "complete"
+                         and cdp("navtest", "document.documentElement.dataset.tvnav") == "on", 60)
+        check("nav service: page loaded with the navigation extension (reloaded by the hub if the "
+              "extension missed the first load)", bool(ready), str(windows()))
         time.sleep(1)
 
         # --- d-pad navigation on a desktop page ---
-        step(pad, "right")
-        check("first arrow key puts the focus ring on the top-left element", focused() == "b1", str(focused()))
+        step(pad, "down")
+        check("a dialog on top of the page gets the focus first", focused() == "ok-dialog", str(focused()))
+        step(pad, "left", "up")
+        check("and keeps it until it is closed", focused() == "ok-dialog", str(focused()))
+        step(pad, e.BTN_SOUTH, "right")
+        check("then the first arrow key puts the focus ring on the top-left element", focused() == "b1", str(focused()))
         step(pad, "right")
         check("right moves to the neighbour", focused() == "b2", str(focused()))
         step(pad, "down")
         check("down moves to the element below", focused() == "b5", str(focused()))
         step(pad, e.BTN_SOUTH)
         clicks = cdp("navtest", "clicks.join()")
-        check("A activates the focused element (once)", clicks == "b5", str(clicks))
+        check("A activates the focused element (once)", clicks == "ok-dialog,b5", str(clicks))
         step(pad, "right", e.BTN_SOUTH)
         clicks = cdp("navtest", "clicks.join()")
-        check("elements that are buttons only by role work too", clicks == "b5,d6", f"{focused()} {clicks}")
+        check("elements that are buttons only by role work too", clicks == "ok-dialog,b5,d6", f"{focused()} {clicks}")
         step(pad, "up")
         check("disabled elements are skipped", focused() in ("d6", "b2"), str(focused()))
         step(pad, "left", "left", "left")

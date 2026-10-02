@@ -15,6 +15,8 @@
 
 (() => {
   if (window.top !== window) return;          // frames are not navigated separately
+  // The hub checks for this after a service starts (see apps.check_navigation).
+  document.documentElement.dataset.tvnav = 'on';
   const site = window.tvnavSite ?? {};
   const GENERIC = 'a[href], button, input, select, textarea, summary, [role="button"], [role="link"], '
     + '[role="menuitem"], [role="tab"], [role="option"], [role="checkbox"], [tabindex]:not([tabindex="-1"])';
@@ -32,10 +34,18 @@
     return !el.disabled && el.getAttribute('aria-hidden') !== 'true';
   }
 
+  // Dialogs on top of the page (cookie banners on a first visit, profile
+  // pickers, confirmations) keep the focus until they are dealt with.
+  const DIALOGS = 'dialog[open], [role="dialog"], [role="alertdialog"], [aria-modal="true"], '
+    + '#onetrust-banner-sdk, #onetrust-pc-sdk';
+
   function candidates() {
     const selector = site.candidates ? `${GENERIC}, ${site.candidates}` : GENERIC;
-    return [...document.querySelectorAll(selector)].filter((el) =>
+    const all = [...document.querySelectorAll(selector)].filter((el) =>
       visible(el) && !(site.ignore && el.closest(site.ignore)));
+    const dialogs = [...document.querySelectorAll(DIALOGS)].filter((d) => visible(d) && all.some((el) => d.contains(el)));
+    const top = dialogs[dialogs.length - 1];
+    return top ? all.filter((el) => top.contains(el)) : all;
   }
 
   function setFocus(el) {

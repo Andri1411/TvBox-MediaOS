@@ -136,6 +136,10 @@ check "browser, policies and Jellyfin client installed" \
 check "Widevine fetch set up" \
     'systemctl is-enabled -q tvbox-widevine.service && { test -f /var/lib/tvbox/WidevineCdm/manifest.json || systemctl is-active tvbox-widevine.service | grep -qE "activating|active"; }'
 
+# Phase 4: navigation extension, on-screen keyboard (details: tests/qemu/session.sh)
+check "navigation extension and typing tool installed" \
+    'test -f /usr/share/tvbox/extensions/tvnav/manifest.json && command -v wtype >/dev/null'
+
 $qmp screendump "$state/screen.png" && log "screenshot: $state/screen.png"
 ((failed == 0)) || die "some checks failed"
 log "all checks passed"

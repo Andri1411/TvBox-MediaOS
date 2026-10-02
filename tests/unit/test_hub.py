@@ -63,6 +63,17 @@ def test_requests_from_web_pages_are_refused(tmp_path, monkeypatch):
                 assert r.status == 403
             async with client.post("/api/cmd", headers=own, data='{"cmd": "nope"}') as r:
                 assert r.status == 400
+            # our navigation extension may report text focus, and nothing else
+            ext = own | {"Origin": "chrome-extension://ecgejpihnmlnjmgnejffnelbhbiehbpm"}
+            async with client.post("/api/cmd", headers=ext, data='{"cmd": "text_focus", "focused": false}') as r:
+                assert r.status == 200
+            async with client.post("/api/cmd", headers=ext, data='{"cmd": "reboot"}') as r:
+                assert r.status == 400
+            async with client.get("/api/state", headers=ext) as r:
+                assert r.status == 403
+            other = own | {"Origin": "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+            async with client.post("/api/cmd", headers=other, data='{"cmd": "text_focus"}') as r:
+                assert r.status == 403
             async with client.get("/ws", headers=own | {
                     "Origin": "https://www.netflix.com", "Upgrade": "websocket",
                     "Connection": "Upgrade", "Sec-WebSocket-Version": "13",

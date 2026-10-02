@@ -146,6 +146,12 @@ def close_menu(daemon):
     daemon.read(0.2)
 
 
+def neutral_workspace():
+    """An empty workspace: the keys under test must not land on the home
+    screen, where Enter would launch a service."""
+    tv("sh", "-c", f"swaymsg -s $(ls -t {RUNTIME}/sway-ipc.*.sock | head -1) workspace scratch")
+
+
 def tapped(key):
     return [f"{key}:1", f"{key}:0"]
 
@@ -161,11 +167,12 @@ def main():
     check("virtual input device exists", out is not None)
     if not out or unit != "active":
         return
-    inputs = tv("sh", "-c", f"swaymsg -s $(ls {RUNTIME}/sway-ipc.*.sock | head -1) -t get_inputs -r").stdout
+    inputs = tv("sh", "-c", f"swaymsg -s $(ls -t {RUNTIME}/sway-ipc.*.sock | head -1) -t get_inputs -r").stdout
     kinds = {i["type"] for i in json.loads(inputs or "[]") if i["name"] == "tvbox virtual input"}
     check("sway uses it as keyboard and pointer", {"keyboard", "pointer"} <= kinds, str(kinds))
 
     USER_CONF.unlink(missing_ok=True)
+    neutral_workspace()
     daemon = Daemon()
     hello = daemon.read(0.5)
     check("hello on connect", hello and hello[0].get("event") == "hello", str(hello))
@@ -213,6 +220,7 @@ def main():
     check("Xbox button long = system menu, while still held",
           early == [] and got == ["ui:system_menu"], f"{early} {got}")
     close_menu(daemon)          # the hub has opened it; menu_test.py covers the menu itself
+    neutral_workspace()         # the short press went to the home screen
 
     pad.axis(e.ABS_RZ, 1023)
     pad.axis(e.ABS_Z, 1023)
@@ -235,14 +243,14 @@ def main():
     got = drain(out)
     check("other buttons keep defaults", got == tapped("KEY_ENTER"), str(got))
 
-    tv("sh", "-c", f"swaymsg -s $(ls {RUNTIME}/sway-ipc.*.sock | head -1) workspace youtube")
+    tv("sh", "-c", f"swaymsg -s $(ls -t {RUNTIME}/sway-ipc.*.sock | head -1) workspace youtube")
     status = daemon.wait_status(lambda s: s["app"] == "youtube")
     check("focused workspace is the app id", status["app"] == "youtube", str(status["app"]))
     drain(out, 0.1)
     pad.press(e.BTN_START)
     got = drain(out)
     check("per-app binding applies in that app", got == tapped("KEY_K"), str(got))
-    tv("sh", "-c", f"swaymsg -s $(ls {RUNTIME}/sway-ipc.*.sock | head -1) workspace 1")
+    tv("sh", "-c", f"swaymsg -s $(ls -t {RUNTIME}/sway-ipc.*.sock | head -1) workspace scratch")
     daemon.wait_status(lambda s: s["app"] != "youtube")
     pad.press(e.BTN_START)
     got = drain(out)

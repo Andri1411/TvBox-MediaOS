@@ -49,19 +49,34 @@ def available_kb() -> int | None:
     return None
 
 
-def windows_by_workspace(tree: dict) -> dict[str, int]:
-    """Number of application windows on each workspace of a sway tree."""
-    counts: dict[str, int] = {}
+def app_windows(tree: dict) -> list[dict]:
+    """Application windows of a sway tree as {id, pid, workspace}; workspaces
+    without windows appear in `windows_by_workspace` only."""
+    found: list[dict] = []
 
     def walk(node: dict, workspace: str | None) -> None:
         if node.get("type") == "workspace":
             workspace = node.get("name")
-            counts.setdefault(workspace, 0)
         elif workspace and node.get("pid") and node.get("type") in ("con", "floating_con"):
-            counts[workspace] += 1
+            found.append({"id": node.get("id"), "pid": node["pid"], "workspace": workspace})
         for child in node.get("nodes", []) + node.get("floating_nodes", []):
             walk(child, workspace)
     walk(tree, None)
+    return found
+
+
+def windows_by_workspace(tree: dict) -> dict[str, int]:
+    """Number of application windows on each workspace of a sway tree."""
+    counts: dict[str, int] = {}
+
+    def names(node: dict) -> None:
+        if node.get("type") == "workspace":
+            counts.setdefault(node.get("name"), 0)
+        for child in node.get("nodes", []):
+            names(child)
+    names(tree)
+    for window in app_windows(tree):
+        counts[window["workspace"]] += 1
     return counts
 
 
@@ -186,19 +201,32 @@ class AppManager:
         workspace whose last window has closed."""
         while True:
             try:
+                # Windows that appeared while nobody was listening (hub or
+                # sway restarted) are put right first.
+                for con in app_windows(await sway.request(sway.GET_TREE)):
+                    await self.place(con)
                 async for event in sway.events("window"):
                     change, con = event.get("change"), event.get("container") or {}
                     if change == "new":
-                        service_id = unit_of_pid(con.get("pid") or 0)
-                        if service_id and sway_id(service_id):
-                            await sway.command(f"[con_id={con['id']}] move container to workspace {service_id}")
-                            self.active[service_id] = "running"
+                        if await self.place(con):
                             self.hub.push_state()
                     elif change == "close":
                         self.hub.spawn(self.leave_empty_workspace())
             except (ConnectionError, OSError) as err:
                 log.debug("sway window events: %s", err)
             await asyncio.sleep(2)
+
+    async def place(self, con: dict) -> bool:
+        """Move a window to the workspace of the service it belongs to."""
+        service_id = unit_of_pid(con.get("pid") or 0)
+        if not service_id or not sway_id(service_id) or con.get("workspace") == service_id:
+            return False
+        await sway.command(f"[con_id={con['id']}] move container to workspace {service_id}")
+        self.active[service_id] = "running"
+        return True
+
+    async def stop_all(self) -> None:
+        await run("systemctl", "--user", "stop", UNIT.format("*"), timeout=20)
 
     async def leave_empty_workspace(self) -> None:
         await asyncio.sleep(0.5)        # a restarting app opens its new window first

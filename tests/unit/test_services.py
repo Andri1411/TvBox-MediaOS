@@ -129,6 +129,8 @@ def test_windows_by_workspace():
          "floating_nodes": [{"type": "floating_con", "pid": 8, "nodes": []}]},
         {"type": "workspace", "name": "netflix", "nodes": []}]}]}
     assert apps.windows_by_workspace(tree) == {"home": 1, "youtube": 2, "netflix": 0}
+    assert [(w["pid"], w["workspace"]) for w in apps.app_windows(tree)] == [
+        (5, "home"), (7, "youtube"), (8, "youtube")]
 
 
 def test_unit_of_pid(tmp_path, monkeypatch):

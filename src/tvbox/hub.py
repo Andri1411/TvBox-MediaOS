@@ -322,6 +322,9 @@ class Hub:
             # greetd logs in automatically only once per boot, so sway must be
             # restarted by tvbox-session's loop: the flag tells it this exit
             # is not a logout.
+            # Apps go first: a browser whose compositor vanishes "crashes" and
+            # systemd would bring it straight back in the new session.
+            await self.apps.stop_all()
             (runtime_dir() / "restart-session").touch()
             await self.sway_command("exit")
         elif cmd == "reboot":

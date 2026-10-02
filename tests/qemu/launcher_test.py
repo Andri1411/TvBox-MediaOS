@@ -102,8 +102,7 @@ def main():
     check("shell and inputd are connected to the hub", ui_ready(st), str(st)[:300])
     if failed:
         return
-    for sid in ("alpha", "beta", "webtest"):
-        tv("systemctl", "--user", "stop", f"tvbox-app@{sid}")
+    tv("systemctl", "--user", "stop", "tvbox-app@*")
     USER_SERVICES.unlink(missing_ok=True)
     st = install_test_services()
     ids = [s["id"] for s in st["services"]]

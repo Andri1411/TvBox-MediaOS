@@ -1,7 +1,8 @@
 # tvbox architecture
 
-Status: **Phase 0, reviewed.** Review answers are in
-[§6](#6-review-outcome-phase-0).
+Status: **Phases 1 and 2 implemented.** Phase 0 review answers are in
+[§6](#6-review-outcome-phase-0); where the implementation departed from this
+plan, DECISIONS.md says why.
 
 `tvbox` is the working name. It is defined once in `config.mk` (`NAME`) and is
 the prefix for packages (`tvbox-*`), the repo (`[tvbox]`), config paths
@@ -97,7 +98,7 @@ What the installer does (and nothing else):
 | `tvbox-keyring`       | repo signing key for pacman-key (once signing is decided)                                      |
 | `tvbox-base`          | meta package: depends on everything below + system config as drop-ins (see 3.3)               |
 | `tvbox-session`       | greetd autologin, sway kiosk config, `tvbox-session.target`                                    |
-| `tvbox-core`          | Python package: `tvbox-inputd`, `tvbox-hub`, `tvbox-shell`, `tvbox-ctl`, web UI, user units    |
+| `tvbox-core`          | Python code in `/usr/lib/tvbox`: `tvbox-inputd`, `tvbox-hub`, `tvbox-shell`, `tvbox-ctl`; web UI, default bindings, user units |
 | `tvbox-updater`       | root update/rollback service                                                                    |
 | `tvbox-browser`       | browser wrapper, managed policies, per-service flags, our extensions (nav scripts, quality)    |
 | third-party (AUR)     | rebuilt and pinned in `pkgs/aur.list`: browser (if from AUR), `xpadneo-dkms`, others as needed |
@@ -159,17 +160,21 @@ device profile (match by name / vendor:product / capabilities):
 
 - `gamepad` (Xbox USB via `xpad`, Bluetooth via `xpadneo`) — grabbed
   (`EVIOCGRAB`) so apps only see our synthesized events;
-- `remote` (future ESP32 BLE remote: keyboard + consumer control keys) —
-  grabbed;
-- `keyboard` / `mouse` (a real one plugged in for debugging) — **not**
-  grabbed; only explicitly bound global keys are intercepted.
+- `remote` (arrows + OK without an alphabet; or any device named by a
+  `[[device]]` rule in bindings.toml, which is how the keyboard-like ESP32 BLE
+  remote is declared) — grabbed;
+- `keyboard` / `mouse` (a real one plugged in for debugging) — left alone
+  entirely. Keyboards reach the system menu through sway bindings
+  (`Ctrl+Alt+M`, Menu key) and a sway binding mode while the menu is open.
+  (Changed in Phase 2, see DECISIONS.md.)
 
 **Two-layer mapping.**
 
 1. *Device profile*: physical code → **logical button** from a shared
    vocabulary: `up down left right ok back home menu play_pause vol_up
    vol_down mute` (remote-like, every device can produce these) plus gamepad
-   extras `x y lb rb lt rt view start ls rs` and analog `stick_l stick_r`.
+   extras `x y lb rb lt rt view start ls rs` and four-way stick directions
+   `ls_up`… / `rs_up`… (the analog position is used in mouse mode).
    Xbox: A→`ok`, B→`back`, Guide→`home`, Start→`start`, …; BLE remote:
    `KEY_ENTER`→`ok`, `KEY_PLAYPAUSE`→`play_pause`, …; phone sends logical
    buttons directly.
@@ -212,9 +217,13 @@ sent to the hub as UI events instead of keys) and `mouse` (left stick →
 pointer with acceleration, A → click, right stick → wheel). The hub sets the
 mode; Guide long press always works in every mode.
 
-**Focus.** inputd subscribes to sway window events itself to know the focused
-app (→ per-app bindings) without going through the hub, so input keeps working
-if the hub is restarting.
+**Focus.** inputd subscribes to sway workspace events itself; the focused
+workspace's name is the app id (→ per-app bindings). This doesn't go through
+the hub, so input keeps working if the hub is restarting.
+
+**Control socket.** `$XDG_RUNTIME_DIR/tvbox/input.sock`, JSON lines; the
+protocol is documented at the top of `src/tvbox/inputd.py`. The hub, the
+phone remote (through the hub) and `tvbox-ctl` use it.
 
 **Reload.** inotify on the three bindings files; invalid files are rejected
 with the error surfaced in the UI, the last good config stays active.
@@ -229,7 +238,7 @@ Python, aiohttp, `dbus-fast`. The control center:
 
 - **HTTP/WebSocket server** on port 8080. Requests from loopback (home
   screen, overlay) are trusted; requests from the LAN (phone) need a device
-  token. Serves `src/web/`.
+  token. Serves `src/web/`. (Until Phase 5 it binds to loopback only.)
 - **App manager.** Services are defined in `services.toml` (same override
   chain as bindings):
 
@@ -341,6 +350,7 @@ make qemu-iso   boot ISO, UEFI/OVMF, NVMe test disk at build/qemu/disk.qcow2
 make qemu-disk  boot the installed test disk
 make serve-repo serve build/repo at http://10.0.2.2:8800/repo for the guest,
                 so the update flow can be tested against new local builds
+make qemu-install / make qemu-input   end-to-end tests in the VM
 make lint / make qemu-smoke / make test
 ```
 

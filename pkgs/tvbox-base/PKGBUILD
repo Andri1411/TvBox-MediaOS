@@ -16,6 +16,8 @@ depends=(
     btrfs-progs dosfstools snapper snap-pac
     # system services
     networkmanager bluez bluez-utils openssh polkit zram-generator
+    # controllers over Bluetooth (from pkgs/aur.list)
+    xpadneo-dkms
     # audio
     pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils sof-firmware
     # Intel graphics and video decoding

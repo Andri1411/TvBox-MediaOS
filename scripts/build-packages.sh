@@ -55,7 +55,9 @@ build_aur() {  # build_aur <name> <commit>
     git -C "$dir" fetch -q origin
     git -C "$dir" checkout -q --detach "$commit"
     log "AUR $name @ ${commit:0:10}"
-    build_dir "$dir" --syncdeps --needed
+    # --nocheck: check() suites pull in heavy dependencies (xpadneo's wants
+    # kernel headers to test-build the module; DKMS builds it on the box).
+    build_dir "$dir" --syncdeps --needed --nocheck
 }
 
 wanted() {  # wanted <name>: true if no filter was given or name is in it

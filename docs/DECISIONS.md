@@ -169,3 +169,13 @@ Our packages are `arch=any` with no build step, so `makepkg --nodeps` is used
 for them. Otherwise building `tvbox-base` would install its whole runtime
 dependency tree (kernel, mesa, ...) into the builder. AUR packages still use
 `--syncdeps`.
+
+### Tried and didn't work (Phase 1)
+- **Separate `intel-ucode.img` initrd in the ISO boot entry:** current archiso
+  embeds microcode in the initramfs (mkinitcpio `microcode` hook) and no
+  longer ships the file; systemd-boot failed with "Error preparing initrd: Not
+  found" and OVMF fell through to the UEFI shell. Removed the line.
+- **releng's `systemd-time-wait-sync`:** blocks boot until NTP succeeds, with
+  no time limit. On a network that blocks NTP (the QEMU test sandbox, some
+  guest Wi-Fi) the installer never starts. Removed from the ISO; the RTC is
+  accurate enough for signature checks and timesyncd still runs.

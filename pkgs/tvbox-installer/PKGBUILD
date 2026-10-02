@@ -1,0 +1,15 @@
+# The installer that runs on the tvbox ISO. Packaged so it is built, linted
+# and versioned like everything else; it is only installed on the ISO.
+pkgname=tvbox-installer
+pkgver=${TVBOX_PKGVER:-0.0.0}
+pkgrel=1
+pkgdesc="tvbox disk installer (runs on the installer ISO)"
+arch=(any)
+license=(GPL-3.0-or-later)
+depends=(arch-install-scripts btrfs-progs dialog dosfstools gptfdisk efibootmgr iwd curl)
+source=(tvbox-install)
+sha256sums=(SKIP)
+
+package() {
+    install -Dm755 tvbox-install "$pkgdir/usr/bin/tvbox-install"
+}

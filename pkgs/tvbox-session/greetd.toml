@@ -1,0 +1,14 @@
+# tvbox greetd config (selected by the greetd.service drop-in).
+[terminal]
+vt = 1
+
+# Auto-login once at boot.
+[initial_session]
+command = "/usr/bin/tvbox-session"
+user = "tv"
+
+# Only reached if the session gives up entirely (tvbox-session restarts sway
+# by itself); a text login is the emergency fallback.
+[default_session]
+command = "agreety --cmd /usr/bin/tvbox-session"
+user = "greeter"

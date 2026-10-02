@@ -1,0 +1,356 @@
+#!/bin/bash
+# tvbox installer. Runs on the live ISO (tty1 autostart).
+#
+# Interactive:   pick disk -> Wi-Fi (only if offline) -> SSH key (optional)
+#                -> confirm -> install -> reboot
+# Automated:     QEMU only. If the fw_cfg entry opt/tvbox/autoinstall exists
+#                (scripts/qemu.sh QEMU_AUTOINSTALL=...), its key=value lines
+#                answer every question and the machine powers off when done.
+#                fw_cfg does not exist on real hardware, so this can never
+#                trigger there.
+#
+# Everything the installed system does comes from packages (tvbox-base,
+# tvbox-session, ...). This script only partitions, pacstraps and writes
+# machine-specific files.
+set -euo pipefail
+
+NAME=tvbox
+REPO_DIR=/opt/$NAME/repo
+MNT=/mnt
+LOG=/var/log/$NAME-install.log
+TITLE="tvbox installer"
+FWCFG=/sys/firmware/qemu_fw_cfg/by_name/opt/tvbox/autoinstall/raw
+
+AUTO=0
+DISK=""
+HOSTNAME_=$NAME
+SSH_KEYS=""
+WIFI_SSID=""
+WIFI_PSK=""
+TIMEZONE=""
+MIRROR=""
+
+# ---------------------------------------------------------------- helpers
+
+log()  { printf '[%s] %s\n' "$(date +%T)" "$*" >>"$LOG"; serial "$*"; }
+# Progress markers on the serial console let QEMU tests follow the install.
+serial() {
+    if [[ -w /dev/ttyS0 ]]; then printf 'TVBOX-INSTALL: %s\r\n' "$*" >/dev/ttyS0 2>/dev/null || true; fi
+}
+fail() {
+    log "FAILED: $*"
+    if ((AUTO)); then
+        tail -n 40 "$LOG" | while IFS= read -r line; do serial "log: $line"; done
+        serial "FAILED"; sleep 2; systemctl poweroff
+    fi
+    dialog --title "$TITLE" --msgbox "Installation failed:\n\n$*\n\nDetails: $LOG\nPress Enter for a shell." 14 70 || true
+    exit 1
+}
+run() {  # run <cmd...>: log and execute, abort on failure
+    log "+ $*"
+    "$@" >>"$LOG" 2>&1 || fail "command failed: $*"
+}
+d() { dialog --backtitle "$TITLE" "$@" 3>&1 1>&2 2>&3; }
+
+part() {  # part <disk> <n>: partition device name (nvme0n1 -> nvme0n1p1, sda -> sda1)
+    if [[ $1 =~ [0-9]$ ]]; then echo "${1}p$2"; else echo "$1$2"; fi
+}
+
+# ---------------------------------------------------------------- answers
+
+load_auto() {
+    modprobe qemu_fw_cfg 2>/dev/null || true
+    [[ -r $FWCFG ]] || return 0
+    AUTO=1
+    local key val
+    while IFS='=' read -r key val; do
+        case $key in
+            disk) DISK=$val ;;
+            hostname) HOSTNAME_=$val ;;
+            ssh_key) SSH_KEYS+="$val"$'\n' ;;
+            timezone) TIMEZONE=$val ;;
+            mirror) MIRROR=$val ;;
+        esac
+    done < "$FWCFG"
+    log "automated install (fw_cfg): disk=$DISK"
+    if [[ -n $MIRROR ]]; then
+        # Used for the install and kept by pacstrap for the installed system.
+        printf 'Server = %s\n' "$MIRROR" > /etc/pacman.d/mirrorlist
+        log "using mirror $MIRROR"
+    fi
+    [[ -b $DISK ]] || fail "autoinstall disk $DISK not found"
+}
+
+live_disk() {  # the disk the ISO booted from, never offered as a target
+    local src
+    src=$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null || true)
+    [[ -n $src ]] && lsblk -no PKNAME "$src" 2>/dev/null | head -1
+}
+
+choose_disk() {
+    local live items=() name size model tran
+    live=$(live_disk || true)
+    while read -r name size tran model; do
+        [[ ${name##*/} == "$live" ]] && continue
+        items+=("$name" "$size  ${tran:-?}  ${model:-unknown}")
+    done < <(lsblk -dnpo NAME,SIZE,TRAN,MODEL -e 7,11 -I 8,259,179,253 2>/dev/null || lsblk -dnpo NAME,SIZE,TRAN,MODEL -e 7,11)
+    ((${#items[@]})) || fail "no installable disk found"
+    DISK=$(d --title "Target disk" --menu \
+        "Choose the disk to install tvbox on.\nEVERYTHING ON IT WILL BE ERASED." 16 74 8 "${items[@]}") \
+        || exit 1
+}
+
+# Online = the first configured Arch mirror answers.
+online() {
+    local url
+    url=$(sed -n 's/^[[:space:]]*Server[[:space:]]*=[[:space:]]*//p' /etc/pacman.d/mirrorlist | head -1)
+    url=${url:-https://geo.mirror.pkgbuild.com/\$repo/os/\$arch}
+    url=${url//\$repo/core}; url=${url//\$arch/x86_64}
+    curl -fsS --max-time 8 -o /dev/null "$url/core.db" 2>/dev/null
+}
+
+wifi_device() { iwctl device list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk '$2 == "station" {print $1; exit}'; }
+
+setup_network() {
+    local dev nets=() ssid
+    for _ in 1 2 3 4 5; do online && return 0; sleep 2; done
+    dev=$(wifi_device || true)
+    [[ -n $dev ]] || fail "no network: connect an Ethernet cable and restart the installer"
+    while ! online; do
+        iwctl station "$dev" scan >/dev/null 2>&1 || true
+        sleep 3
+        nets=()
+        while IFS= read -r ssid; do
+            [[ -n $ssid ]] && nets+=("$ssid" "")
+        done < <(iwctl station "$dev" get-networks 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' \
+                 | awk 'NR>4 && NF>=3 {sub(/^[ >]+/, ""); $NF=""; $(NF-1)=""; sub(/[ \t]+$/, ""); print}')
+        ((${#nets[@]})) || nets=("(rescan)" "")
+        ssid=$(d --title "Wi-Fi" --menu "No wired connection. Choose a Wi-Fi network:" 18 60 10 "${nets[@]}") || exit 1
+        [[ $ssid == "(rescan)" ]] && continue
+        WIFI_PSK=$(d --title "Wi-Fi" --insecure --passwordbox "Password for \"$ssid\":" 9 60) || continue
+        WIFI_SSID=$ssid
+        d --infobox "Connecting to $ssid ..." 5 50 || true
+        iwctl --passphrase "$WIFI_PSK" station "$dev" connect "$ssid" >>"$LOG" 2>&1 || true
+        for _ in 1 2 3 4 5 6 7 8; do online && break; sleep 2; done
+        online || d --msgbox "Could not get online via \"$ssid\". Try again." 7 50 || true
+    done
+}
+
+ask_ssh() {
+    local user keys
+    user=$(d --title "Remote maintenance (optional)" --inputbox \
+        "SSH is enabled with key-only login as root.\nEnter a GitHub username to import its public keys,\nor leave empty to add keys later from the phone settings." 11 64) || return 0
+    [[ -n $user ]] || return 0
+    if keys=$(curl -fsS --max-time 10 "https://github.com/$user.keys") && [[ -n $keys ]]; then
+        SSH_KEYS+="$keys"$'\n'
+    else
+        d --msgbox "No keys found for \"$user\". You can add keys later." 7 56 || true
+    fi
+}
+
+confirm() {
+    local size model
+    size=$(lsblk -dno SIZE "$DISK"); model=$(lsblk -dno MODEL "$DISK")
+    d --title "Confirm" --defaultno --yesno \
+        "Install tvbox on\n\n   $DISK  ($size, ${model:-unknown})\n\nALL DATA ON THIS DISK WILL BE ERASED.\n\nContinue?" 13 60 \
+        || exit 1
+}
+
+# ---------------------------------------------------------------- install
+
+guess_timezone() {
+    [[ -n $TIMEZONE ]] && return 0
+    TIMEZONE=$(curl -fsS --max-time 5 https://ipapi.co/timezone 2>/dev/null || true)
+    [[ -n $TIMEZONE && -f /usr/share/zoneinfo/$TIMEZONE ]] || TIMEZONE=UTC
+}
+
+partition() {
+    local esp root
+    esp=$(part "$DISK" 1); root=$(part "$DISK" 2)
+    log "partitioning $DISK"
+    umount -R "$MNT" 2>/dev/null || true
+    run wipefs -af "$DISK"
+    run sgdisk --zap-all "$DISK"
+    run sgdisk -n1:0:+1G -t1:ef00 -c1:EFI -n2:0:0 -t2:8300 -c2:"$NAME" "$DISK"
+    run partx -u "$DISK"
+    run udevadm settle
+    run mkfs.fat -F32 -n EFI "$esp"
+    run mkfs.btrfs -f -L "$NAME" "$root"
+
+    run mount "$root" "$MNT"
+    local sv
+    for sv in @ @home @snapshots @var_log @var_cache_pacman_pkg @var_tmp; do
+        run btrfs subvolume create "$MNT/$sv"
+    done
+    run umount "$MNT"
+
+    local o=noatime,compress=zstd:1
+    run mount -o "subvol=@,$o" "$root" "$MNT"
+    run mkdir -p "$MNT"/{efi,home,.snapshots,var/log,var/cache/pacman/pkg,var/tmp}
+    run mount -o "subvol=@home,$o" "$root" "$MNT/home"
+    run mount -o "subvol=@snapshots,$o" "$root" "$MNT/.snapshots"
+    run mount -o "subvol=@var_log,$o" "$root" "$MNT/var/log"
+    run mount -o "subvol=@var_cache_pacman_pkg,$o" "$root" "$MNT/var/cache/pacman/pkg"
+    run mount -o "subvol=@var_tmp,$o" "$root" "$MNT/var/tmp"
+    run mount -o umask=0077 "$esp" "$MNT/efi"
+}
+
+pacman_conf() {  # pacman.conf for pacstrap: embedded [tvbox] repo + Arch mirrors
+    local siglevel="Required"
+    if [[ ! -f $REPO_DIR/$NAME.db.sig ]]; then
+        siglevel="Optional TrustAll"
+        log "WARNING: embedded repo is unsigned (development build)"
+    fi
+    cat > /tmp/pacstrap.conf <<END
+[options]
+HoldPkg = pacman glibc
+Architecture = auto
+ParallelDownloads = 5
+SigLevel = Required DatabaseOptional
+LocalFileSigLevel = Optional
+
+[$NAME]
+SigLevel = $siglevel
+Server = file://$REPO_DIR
+
+[core]
+Include = /etc/pacman.d/mirrorlist
+
+[extra]
+Include = /etc/pacman.d/mirrorlist
+END
+}
+
+install_packages() {
+    log "installing packages"
+    # The live system initialises its pacman keyring at boot
+    # (pacman-init.service). Wait for it: starting a oneshot unit blocks until
+    # it has finished. Without this, a fast install races it and every package
+    # fails its signature check ("key is unknown", "keyring is not writable").
+    run systemctl start pacman-init.service
+    # pacstrap verifies with the live system's keyring: make it trust our key.
+    run pacman-key --populate "$NAME"
+    pacman_conf
+    run pacstrap -C /tmp/pacstrap.conf -K "$MNT" base "$NAME-base"
+    # The sync db came from the embedded repo. Drop it so the installed system
+    # fetches the real (signed) one from its own mirrorlist on the next -Sy.
+    rm -f "$MNT/var/lib/pacman/sync/$NAME".{db,files}{,.sig}
+}
+
+chr() { run arch-chroot "$MNT" "$@"; }
+
+configure() {
+    log "configuring"
+    genfstab -U "$MNT" | sed 's/subvolid=[0-9]*,//; s/,subvolid=[0-9]*//' > "$MNT/etc/fstab"
+    log "$(cat "$MNT/etc/fstab")"
+
+    echo "$HOSTNAME_" > "$MNT/etc/hostname"
+    printf '127.0.0.1 localhost\n::1 localhost\n127.0.1.1 %s\n' "$HOSTNAME_" > "$MNT/etc/hosts"
+
+    sed -i 's/^#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' "$MNT/etc/locale.gen"
+    chr locale-gen
+    echo LANG=en_US.UTF-8 > "$MNT/etc/locale.conf"
+    guess_timezone
+    run ln -sf "/usr/share/zoneinfo/$TIMEZONE" "$MNT/etc/localtime"
+    chr hwclock --systohc || true
+
+    # [tvbox] repo, placed before [core] so it wins if we ever ship a fixed
+    # build of an Arch package.
+    if ! grep -q "^\[$NAME\]" "$MNT/etc/pacman.conf"; then
+        sed -i "0,/^\[core\]/s//[$NAME]\nSigLevel = Required\nInclude = \/etc\/pacman.d\/$NAME-mirrorlist\n\n[core]/" \
+            "$MNT/etc/pacman.conf"
+    fi
+    chr pacman-key --populate "$NAME"
+
+    # Unprivileged auto-login user. No password: nobody logs in as tv by hand.
+    chr useradd -m -G input,video,audio -s /bin/bash tv
+    chr passwd -l tv
+    chr passwd -l root
+    if [[ -n ${SSH_KEYS//[$'\n ']/} ]]; then
+        install -d -m700 "$MNT/root/.ssh"
+        printf '%s' "$SSH_KEYS" > "$MNT/root/.ssh/authorized_keys"
+        chmod 600 "$MNT/root/.ssh/authorized_keys"
+    fi
+
+    if [[ -n $WIFI_SSID ]]; then
+        local f="$MNT/etc/NetworkManager/system-connections/$WIFI_SSID.nmconnection"
+        install -d -m700 "${f%/*}"
+        cat > "$f" <<END
+[connection]
+id=$WIFI_SSID
+type=wifi
+autoconnect=true
+
+[wifi]
+mode=infrastructure
+ssid=$WIFI_SSID
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=$WIFI_PSK
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto
+END
+        chmod 600 "$f"
+    fi
+
+    # Snapper config for / (template shipped by tvbox-base).
+    install -Dm640 "$MNT/usr/share/$NAME/snapper-root.conf" "$MNT/etc/snapper/configs/root"
+    if grep -q '^SNAPPER_CONFIGS=' "$MNT/etc/conf.d/snapper" 2>/dev/null; then
+        sed -i 's/^SNAPPER_CONFIGS=.*/SNAPPER_CONFIGS="root"/' "$MNT/etc/conf.d/snapper"
+    else
+        install -Dm644 /dev/stdin "$MNT/etc/conf.d/snapper" <<< 'SNAPPER_CONFIGS="root"'
+    fi
+    chmod 750 "$MNT/.snapshots"
+
+    # Bootloader. /boot lives inside @ so snapshots carry their kernel.
+    sed -i -e 's/^GRUB_DISTRIBUTOR=.*/GRUB_DISTRIBUTOR="tvbox"/' \
+           -e 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=2/' \
+           -e 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3 rd.udev.log_level=3"/' \
+           "$MNT/etc/default/grub"
+    sed -i 's/^#\?GRUB_BTRFS_SUBMENUNAME=.*/GRUB_BTRFS_SUBMENUNAME="tvbox snapshots"/' \
+           "$MNT/etc/default/grub-btrfs/config"
+    chr mkinitcpio -P
+    chr "/usr/share/libalpm/scripts/$NAME-grub-update"
+}
+
+finish() {
+    log "done"
+    sync
+    umount -R "$MNT" || true
+    serial "DONE"
+    if ((AUTO)); then
+        systemctl poweroff
+    else
+        d --title "Done" --msgbox "tvbox is installed.\n\nRemove the USB stick and press Enter to reboot." 9 52 || true
+        systemctl reboot
+    fi
+}
+
+main() {
+    : >"$LOG"
+    [[ $EUID == 0 ]] || { echo "run as root" >&2; exit 1; }
+    [[ -d /sys/firmware/efi ]] || fail "not booted in UEFI mode"
+    load_auto
+    if ((AUTO)); then
+        for _ in $(seq 30); do online && break; sleep 2; done
+        online || fail "no network"
+    else
+        d --title "Welcome" --msgbox "This installs tvbox, a media system for your TV.\n\nYou need: the target disk and a network connection." 9 60 || exit 1
+        choose_disk
+        setup_network
+        ask_ssh
+        confirm
+    fi
+    serial "START"
+    partition
+    install_packages
+    configure
+    finish
+}
+
+main "$@"

@@ -1,0 +1,9 @@
+#!/bin/bash
+# Install GRUB to the ESP and regenerate its config. Installs both the named
+# boot entry and the removable-media fallback path (EFI/BOOT/BOOTX64.EFI),
+# because bare mainboards sometimes forget their NVRAM boot entries.
+set -euo pipefail
+mountpoint -q /efi || { echo "tvbox-grub-update: /efi not mounted, skipping" >&2; exit 0; }
+grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id=tvbox
+grub-install --target=x86_64-efi --efi-directory=/efi --removable --no-nvram
+grub-mkconfig -o /boot/grub/grub.cfg

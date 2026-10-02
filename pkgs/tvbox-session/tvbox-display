@@ -1,0 +1,18 @@
+#!/bin/bash
+# Apply display scale to every connected output.
+#   ~/.config/tvbox/display.conf:  scale=auto | <number>
+# auto: 2 for 4K-class modes (>= 3000 px wide), 1 otherwise.
+set -euo pipefail
+conf=${XDG_CONFIG_HOME:-$HOME/.config}/tvbox/display.conf
+scale=auto
+[[ -f $conf ]] && scale=$(sed -n 's/^scale=//p' "$conf" | tail -1)
+[[ ${1:-apply} == apply ]] || { echo "usage: $0 [apply]" >&2; exit 2; }
+
+swaymsg -t get_outputs -r | jq -r '.[] | select(.active) | "\(.name) \(.current_mode.width)"' |
+while read -r name width; do
+    s=$scale
+    if [[ $s == auto ]]; then
+        if ((width >= 3000)); then s=2; else s=1; fi
+    fi
+    swaymsg output "$name" scale "$s" >/dev/null
+done

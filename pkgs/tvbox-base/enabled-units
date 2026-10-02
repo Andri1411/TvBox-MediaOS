@@ -1,0 +1,10 @@
+# System units tvbox-base enables. Units added here in a later version are
+# enabled on upgrade; units the user disabled are not re-enabled.
+NetworkManager.service
+bluetooth.service
+sshd.service
+systemd-timesyncd.service
+greetd.service
+grub-btrfsd.service
+snapper-cleanup.timer
+fstrim.timer

@@ -1,0 +1,8 @@
+/build/
+__pycache__/
+*.pyc
+.pytest_cache/
+# makepkg leftovers if someone builds in-tree
+pkgs/*/src/
+pkgs/*/pkg/
+pkgs/*/*.pkg.tar.*

@@ -1,0 +1,30 @@
+# Live installer environment. Kept small: the installer only partitions,
+# pacstraps and configures; rescue tooling is limited to the essentials.
+arch-install-scripts
+base
+btrfs-progs
+dialog
+dosfstools
+efibootmgr
+gptfdisk
+intel-ucode
+iwd
+less
+linux
+linux-firmware
+mkinitcpio
+mkinitcpio-archiso
+nano
+nvme-cli
+openssh
+pciutils
+sudo
+systemd-resolvconf
+usbutils
+vim
+wireless-regdb
+zsh
+grml-zsh-config
+# ours (from the embedded [tvbox] repo)
+tvbox-installer
+tvbox-keyring

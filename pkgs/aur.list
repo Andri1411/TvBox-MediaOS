@@ -1,0 +1,7 @@
+# Third-party packages rebuilt into our repo, pinned to an AUR git commit so a
+# rebuild is reproducible and upstream changes are reviewed before shipping.
+#
+# <aur-package-name>  <commit-sha>   [# comment]
+#
+# Filled in from Phase 1 on (expected: browser, xpadneo-dkms, jellyfin client
+# if not in [extra], ...). See docs/ARCHITECTURE.md "Packages".

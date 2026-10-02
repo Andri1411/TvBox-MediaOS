@@ -13,9 +13,9 @@ depends=(
     # audio control (wpctl, pw-dump)
     pipewire wireplumber
 )
-source=(tvbox-inputd.service tvbox-hub.service tvbox-shell.service
+source=(tvbox-inputd.service tvbox-hub.service tvbox-shell.service tvbox-app@.service
         uinput.rules modules-load.conf)
-sha256sums=(SKIP SKIP SKIP SKIP SKIP)
+sha256sums=(SKIP SKIP SKIP SKIP SKIP SKIP)
 
 package() {
     local d=$pkgdir src=${TVBOX_SRC:?set by scripts/build-packages.sh} cmd unit
@@ -24,18 +24,20 @@ package() {
     install -d "$d/usr/lib/tvbox" "$d/usr/bin" "$d/etc/tvbox"
     cp -r "$src/tvbox" "$d/usr/lib/tvbox/tvbox"
     find "$d/usr/lib/tvbox" -name __pycache__ -prune -exec rm -rf {} +
-    for cmd in inputd hub shell ctl; do
+    for cmd in inputd hub shell ctl app; do
         printf '%s\n' '#!/usr/bin/python' 'import sys' \
             'sys.path.insert(0, "/usr/lib/tvbox")' \
             "from tvbox.$cmd import main" 'sys.exit(main())' > "$d/usr/bin/tvbox-$cmd"
         chmod 755 "$d/usr/bin/tvbox-$cmd"
     done
     install -Dm644 "$src/config/bindings.toml" "$d/usr/share/tvbox/bindings.toml"
+    install -Dm644 "$src/config/services.toml" "$d/usr/share/tvbox/services.toml"
     cp -r "$src/web" "$d/usr/share/tvbox/web"
 
     install -Dm644 uinput.rules       "$d/usr/lib/udev/rules.d/60-tvbox-uinput.rules"
     install -Dm644 modules-load.conf  "$d/usr/lib/modules-load.d/tvbox.conf"
     # User units are part of the session: enabled by shipping the symlink.
+    install -Dm644 tvbox-app@.service "$d/usr/lib/systemd/user/tvbox-app@.service"
     install -d "$d/usr/lib/systemd/user/tvbox-session.target.wants"
     for unit in tvbox-inputd.service tvbox-hub.service tvbox-shell.service; do
         install -Dm644 "$unit" "$d/usr/lib/systemd/user/$unit"

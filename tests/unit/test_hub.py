@@ -3,7 +3,8 @@ import asyncio
 from aiohttp.test_utils import TestClient, TestServer
 
 from tvbox import audio
-from tvbox.hub import Hub, sway_safe
+from tvbox.apps import sway_id as sway_safe
+from tvbox.hub import Hub
 
 
 def test_parse_volume():

@@ -50,6 +50,8 @@ async def request(msg_type: int, payload: str = ""):
     try:
         await _send(writer, msg_type, payload)
         return (await _recv(reader))[1]
+    except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError) as err:
+        raise ConnectionError("sway connection lost") from err      # e.g. after "exit"
     finally:
         writer.close()
 

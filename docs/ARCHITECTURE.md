@@ -1,6 +1,6 @@
 # tvbox architecture
 
-Status: **Phases 1 and 2 implemented.** Phase 0 review answers are in
+Status: **Phases 1 to 3 implemented.** Phase 0 review answers are in
 [§6](#6-review-outcome-phase-0); where the implementation departed from this
 plan, DECISIONS.md says why.
 
@@ -100,7 +100,7 @@ What the installer does (and nothing else):
 | `tvbox-session`       | greetd autologin, sway kiosk config, `tvbox-session.target`                                    |
 | `tvbox-core`          | Python code in `/usr/lib/tvbox`: `tvbox-inputd`, `tvbox-hub`, `tvbox-shell`, `tvbox-ctl`; web UI, default bindings, user units |
 | `tvbox-updater`       | root update/rollback service                                                                    |
-| `tvbox-browser`       | browser wrapper, managed policies, per-service flags, our extensions (nav scripts, quality)    |
+| `tvbox-browser`       | Chromium dependency, managed policies, Widevine fetcher; later our extensions (nav scripts, quality). Per-service flags live in `tvbox-app` (tvbox-core) |
 | third-party (AUR)     | rebuilt and pinned in `pkgs/aur.list`: browser (if from AUR), `xpadneo-dkms`, others as needed |
 
 System configuration is shipped as drop-ins under `/usr/lib/...` (journald,
@@ -248,15 +248,14 @@ Python, aiohttp, `dbus-fast`. The control center:
   name = "YouTube"
   kind = "browser"
   url = "https://www.youtube.com/tv"
-  user_agent = "tv"          # named UA preset from browser.toml
-  extensions = ["ublock"]
-  tile = "youtube.svg"
+  user_agent = "tv"          # a name from [user_agents], or a full string
+  color = "#e62117"          # tile colour
 
   [[service]]
   id = "jellyfin"
   name = "Jellyfin"
   kind = "native"
-  exec = "jellyfin-desktop --tv"   # exact flags settled in Phase 3
+  exec = ["jellyfin-desktop", "--tv", "--fullscreen"]
   ```
 
   Each running service is a **templated systemd user unit**
@@ -350,7 +349,7 @@ make qemu-iso   boot ISO, UEFI/OVMF, NVMe test disk at build/qemu/disk.qcow2
 make qemu-disk  boot the installed test disk
 make serve-repo serve build/repo at http://10.0.2.2:8800/repo for the guest,
                 so the update flow can be tested against new local builds
-make qemu-install / make qemu-input   end-to-end tests in the VM
+make qemu-install / make qemu-session end-to-end tests in the VM
 make lint / make qemu-smoke / make test
 ```
 
@@ -421,7 +420,8 @@ audio misbehave on hardware, the robust fallback is forcing the connector on
 with the TV's captured EDID (`drm.edid_firmware=` + `video=HDMI-A-1:e`), so
 the kernel never sees a disconnect.
 
-**Browser.** Two candidates, decided in Phase 3 after testing:
+**Browser.** Decided in Phase 3: Chromium + Widevine fetched on the box (see
+DECISIONS.md). The candidates were:
 
 - *Google Chrome* (AUR, rebuilt into `[tvbox]`): Widevine built in and
   auto-updating, best chance for VA-API + DRM. Caveat: my understanding is
@@ -449,7 +449,8 @@ Settled:
 6. **RAM:** 32 GB. Generous enough to keep all five services alive in the
    background; the LRU eviction threshold stays as a safety net.
 7. **Home screen/overlay:** WebKitGTK (`tvbox-shell`, §3.7).
-8. **Browser:** Chrome vs Chromium+Widevine decided by testing in Phase 3.
+8. **Browser:** Chrome vs Chromium+Widevine decided by testing in Phase 3
+   (outcome: Chromium, Widevine downloaded from Google on the box).
 
 9. **Repo hosting and signing:** CI builds, signs and publishes `[tvbox]` to
    GitHub Pages at `https://andri1411.github.io/mediaOS/x86_64`. See

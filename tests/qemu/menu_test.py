@@ -1,5 +1,5 @@
 #!/usr/bin/python
-"""Runs inside the test VM as root (see tests/qemu/input.sh), after
+"""Runs inside the test VM as root (see tests/qemu/session.sh), after
 input_test.py: drives the system menu with the fake Xbox controller and checks
 the hub's state, the input mode and what reaches the focused app.
 """
@@ -7,17 +7,59 @@ import json
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 
 from evdev import ecodes as e
 from input_test import RUNTIME, Daemon, Pad, check, drain, failed, output_device, tapped, tv
 
 HUB = "http://127.0.0.1:8080"
+SERVICES = "/etc/tvbox/services.toml"
+# Two light "apps" (terminals) so the tests do not depend on the internet.
+# foot exits with an error when its window is closed; the wrapper makes that
+# a clean exit, as when an app is quit from its own menu.
+TEST_SERVICES = '''
+order = ["alpha", "beta"]
+[[service]]
+id = "alpha"
+name = "Alpha"
+kind = "native"
+exec = ["sh", "-c", "foot; true"]
+[[service]]
+id = "beta"
+name = "Beta"
+kind = "native"
+exec = ["sh", "-c", "foot; true"]
+'''
 
 
 def state():
     with urllib.request.urlopen(f"{HUB}/api/state", timeout=5) as r:
         return json.load(r)
+
+
+def api(**cmd):
+    request = urllib.request.Request(f"{HUB}/api/cmd", data=json.dumps(cmd).encode())
+    try:
+        with urllib.request.urlopen(request, timeout=10) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as err:
+        return json.load(err)
+
+
+def ui_ready(st):
+    """Both pages of the shell and inputd are connected to the hub."""
+    return {"home", "overlay"} <= set(st.get("ui_clients", [])) and st.get("input_connected")
+
+
+def service(st, service_id):
+    return next((s for s in st.get("services", []) if s["id"] == service_id), {})
+
+
+def install_test_services():
+    with open(SERVICES, "w") as f:
+        f.write(TEST_SERVICES)
+    return wait_state(lambda s: service(s, "beta"), 5)
 
 
 def wait_state(predicate, timeout=10):
@@ -63,19 +105,19 @@ def main():
     for unit in ("tvbox-hub", "tvbox-shell"):
         active = tv("systemctl", "--user", "is-active", unit).stdout.strip()
         check(f"{unit}.service is active", active == "active", active)
-    st = wait_state(lambda s: s.get("ui_clients", 0) >= 1 and s.get("input_connected"))
-    check("shell and inputd are connected to the hub",
-          st.get("ui_clients", 0) >= 1 and st.get("input_connected"), str(st))
+    st = wait_state(ui_ready, 30)
+    check("shell (home + overlay) and inputd are connected to the hub", ui_ready(st), str(st)[:300])
     if failed:
         return
 
-    # Two "apps": a terminal on each of two workspaces.
-    swaymsg("workspace", "netflix")
-    swaymsg("exec", "foot")
+    install_test_services()
+    api(cmd="launch", id="alpha")
+    wait_state(lambda s: service(s, "alpha").get("state") == "running")
+    api(cmd="launch", id="beta")
+    st = wait_state(lambda s: s["app"] == "beta" and service(s, "beta").get("state") == "running")
+    check("two test apps are running", st["app"] == "beta" and service(st, "alpha").get("state") == "running",
+          str(st.get("services"))[:300])
     time.sleep(1)
-    swaymsg("workspace", "youtube")
-    swaymsg("exec", "foot")
-    time.sleep(1.5)
 
     out = output_device()
     daemon = Daemon()
@@ -132,16 +174,16 @@ def main():
     # --- app switcher ---
     pad.press(e.BTN_SELECT)
     st = wait_state(lambda s: s["overlay"] == "menu", 5)
-    names = sorted(a["id"] for a in st["apps"])
-    check("View button opens the app switcher", st["view"] == "apps" and {"netflix", "youtube"} <= set(names),
-          f"{st['view']} {names}")
-    order = [a["id"] for a in st["apps"]]
-    moves = (order.index("netflix") - order.index("youtube")) % len(order)
+    # the switcher lists running services first, in the configured order
+    order = [s["id"] for s in sorted(st["services"], key=lambda s: s["state"] == "stopped")]
+    check("View button opens the app switcher", st["view"] == "apps" and order[:2] == ["alpha", "beta"],
+          f"{st['view']} {order}")
+    moves = (order.index("alpha") - order.index("beta")) % len(order)
     step(pad, *["down"] * moves, e.BTN_SOUTH)
-    status = daemon.wait_status(lambda s: s["app"] == "netflix")
+    status = daemon.wait_status(lambda s: s["app"] == "alpha")
     st = wait_state(lambda s: s["overlay"] is None, 5)
     check("selecting an app switches to it and closes the menu",
-          status["app"] == "netflix" and st["overlay"] is None, f"{status['app']} {st['overlay']}")
+          status["app"] == "alpha" and st["overlay"] is None, f"{status['app']} {st['overlay']}")
 
     pad.press(e.BTN_MODE)
     status = daemon.wait_status(lambda s: s["app"] == "home")
@@ -182,7 +224,7 @@ def main():
     tv("systemctl", "--user", "kill", "-s", "KILL", "tvbox-shell")
     status = daemon.wait_status(lambda s: s["mode"] == "app")
     check("shell dies with the menu open: input returns to the app", status["mode"] == "app", status["mode"])
-    st = wait_state(lambda s: s.get("ui_clients", 0) >= 1, 20)
+    st = wait_state(ui_ready, 20)
     long_press(pad, e.BTN_MODE)
     st = wait_state(lambda s: s["overlay"] == "menu")
     check("shell is restarted and the menu opens again", st["overlay"] == "menu", str(st.get("overlay")))
@@ -190,7 +232,7 @@ def main():
     tv("systemctl", "--user", "kill", "-s", "KILL", "tvbox-hub")
     status = daemon.wait_status(lambda s: s["mode"] == "app", 15)
     check("hub dies with the menu open: input returns to the app", status["mode"] == "app", status["mode"])
-    st = wait_state(lambda s: s.get("ui_clients", 0) >= 1 and s.get("input_connected"), 20)
+    st = wait_state(ui_ready, 20)
     long_press(pad, e.BTN_MODE)
     st = wait_state(lambda s: s.get("overlay") == "menu")
     check("hub is restarted and the menu opens again", st.get("overlay") == "menu", str(st.get("overlay")))
@@ -210,8 +252,8 @@ def main():
         if new and new != old:
             break
     check("menu: restart session restarts sway (no login prompt)", bool(new) and new != old, f"{old} -> {new}")
-    st = wait_state(lambda s: s.get("ui_clients", 0) >= 1 and s.get("overlay") is None, 40)
-    check("shell reconnects after the session restart", st.get("ui_clients", 0) >= 1, str(st))
+    st = wait_state(lambda s: ui_ready(s) and s.get("overlay") is None, 40)
+    check("shell reconnects after the session restart", ui_ready(st), str(st)[:300])
     status = daemon.wait_status(lambda s: s["mode"] == "app", 10)
     long_press(pad, e.BTN_MODE)
     st = wait_state(lambda s: s.get("overlay") == "menu")

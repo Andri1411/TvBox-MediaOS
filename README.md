@@ -7,8 +7,9 @@ fully usable from the couch with an Xbox controller or a phone.
 - Decisions and things that didn't work: [docs/DECISIONS.md](docs/DECISIONS.md)
 - Original brief: [media-distro-prompt.md](media-distro-prompt.md)
 
-**Status:** Phase 2 (input daemon, bindings, controller defaults, system menu) on top of
-Phase 1 (installer ISO, base system, btrfs + snapper, boots to sway).
+**Status:** Phase 3 (home screen, services, Chromium + Widevine, YouTube TV, Jellyfin
+client) on top of Phase 2 (input daemon, bindings, system menu) and Phase 1 (installer
+ISO, base system, btrfs + snapper).
 
 ## Building
 
@@ -26,7 +27,7 @@ make serve-repo   # let the VM pacman -Syu from your local build
 make lint         # shellcheck + python checks
 make qemu-smoke   # self-test of the QEMU harness, headless
 make qemu-install # unattended install from the ISO + checks on the booted system
-make qemu-input   # input layer + system menu checks in that VM, with a fake Xbox pad
+make qemu-session # input, system menu and launcher checks in that VM, with a fake Xbox pad
 ```
 
 Docker needs to be usable by your user (`sudo usermod -aG docker $USER`, then

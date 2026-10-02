@@ -9,3 +9,7 @@
 # Bluetooth driver for Xbox controllers (rumble, correct button/trigger
 # mapping, battery). Built on the box by DKMS against linux-lts.
 xpadneo-dkms  ae15a8de85094bee24c0e24408a22decb21121e7   # 0.10.4
+
+# Native Jellyfin client (Qt6 WebEngine UI, mpv playback, TV layout).
+# Compiled against the Qt and mpv in [extra]: rebuild when those bump sonames.
+jellyfin-desktop  83732b00707d7031fefbb50a36313d0d02262c4e   # 2.0.0-5

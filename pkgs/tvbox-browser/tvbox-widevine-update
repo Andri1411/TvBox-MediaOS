@@ -1,0 +1,48 @@
+#!/bin/bash
+# Fetch the Widevine content decryption module that Netflix, Disney+ and
+# others need. Chromium ships without it and Google does not allow
+# redistributing it, so the box downloads Google's own Chrome package and
+# takes the module out of it. tvbox-app points each browser profile at the
+# result.
+#
+#   tvbox-widevine-update [--force]     (root)
+#
+# Runs once at first boot (tvbox-widevine.service) and after Chromium is
+# upgraded (pacman hook), i.e. only as part of an update the user started.
+set -euo pipefail
+
+dest=/var/lib/tvbox/WidevineCdm
+repo=https://dl.google.com/linux/chrome/deb
+force=0
+[[ ${1:-} == --force ]] && force=1
+
+index=$(curl -fsSL --retry 3 "$repo/dists/stable/main/binary-amd64/Packages")
+stanza=$(awk -v RS= '/(^|\n)Package: google-chrome-stable(\n|$)/' <<<"$index")
+field() { sed -n "s/^$1: //p" <<<"$stanza" | head -1; }
+version=$(field Version); file=$(field Filename); sum=$(field SHA256)
+[[ -n $version && -n $file && $sum =~ ^[0-9a-f]{64}$ ]] || { echo "cannot read Chrome's package index" >&2; exit 1; }
+
+if [[ $force == 0 && -f $dest/manifest.json && $(cat "$dest/.chrome-version" 2>/dev/null) == "$version" ]]; then
+    echo "Widevine is up to date (from Chrome $version)"
+    exit 0
+fi
+
+mkdir -p "${dest%/*}"
+tmp=$(mktemp -d "${dest%/*}/widevine.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+echo "downloading Chrome $version for its Widevine module"
+curl -fsSL --retry 3 -o "$tmp/chrome.deb" "$repo/$file"
+echo "$sum  $tmp/chrome.deb" | sha256sum --check --quiet -
+bsdtar -xf "$tmp/chrome.deb" -C "$tmp" data.tar.xz
+bsdtar -xf "$tmp/data.tar.xz" -C "$tmp" ./opt/google/chrome/WidevineCdm
+new="$tmp/opt/google/chrome/WidevineCdm"
+[[ -f $new/manifest.json && -f $new/_platform_specific/linux_x64/libwidevinecdm.so ]] \
+    || { echo "Chrome's package has no Widevine module where expected" >&2; exit 1; }
+echo "$version" > "$new/.chrome-version"
+chmod -R a+rX "$new"
+
+rm -rf "$dest.old"
+[[ -e $dest ]] && mv "$dest" "$dest.old"
+mv "$new" "$dest"
+rm -rf "$dest.old"
+echo "Widevine $(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$dest/manifest.json") installed; restart running apps to use it"

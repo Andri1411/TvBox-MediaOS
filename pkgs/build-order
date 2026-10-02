@@ -3,5 +3,6 @@ tvbox-release
 tvbox-keyring
 tvbox-session
 tvbox-core
+tvbox-browser
 tvbox-base
 tvbox-installer

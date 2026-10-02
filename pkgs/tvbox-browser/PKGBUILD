@@ -1,0 +1,21 @@
+# Browser setup for the streaming services: Chromium from [extra], managed
+# policies, and the helper that fetches the Widevine module from Google on the
+# box (it may not be redistributed, so it is never part of this repository).
+pkgname=tvbox-browser
+pkgver=${TVBOX_PKGVER:-0.0.0}
+pkgrel=1
+pkgdesc="tvbox browser setup (Chromium policies, Widevine fetcher)"
+arch=(any)
+license=(GPL-3.0-or-later)
+depends=(chromium curl libarchive coreutils)
+source=(policy.json tvbox-widevine-update tvbox-widevine.service widevine.hook)
+sha256sums=(SKIP SKIP SKIP SKIP)
+
+package() {
+    local d=$pkgdir
+    # Chromium reads managed policies only from /etc.
+    install -Dm644 policy.json            "$d/etc/chromium/policies/managed/tvbox.json"
+    install -Dm755 tvbox-widevine-update  "$d/usr/bin/tvbox-widevine-update"
+    install -Dm644 tvbox-widevine.service "$d/usr/lib/systemd/system/tvbox-widevine.service"
+    install -Dm644 widevine.hook          "$d/usr/share/libalpm/hooks/90-tvbox-widevine.hook"
+}

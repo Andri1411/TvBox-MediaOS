@@ -1,0 +1,33 @@
+/* Home screen: service tiles and settings. Shares variables and the list
+   style with the overlay (overlay.css). */
+body.home { background: #101418; display: flex; flex-direction: column; }
+header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 2.2rem 4rem 0; color: var(--dim); font-size: 1.5rem;
+}
+#brand { font-weight: 600; letter-spacing: .04em; }
+#clock { font-variant-numeric: tabular-nums; color: var(--text); font-size: 1.9rem; }
+
+#tiles-view { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 4rem 4rem; }
+#tiles { display: grid; grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr)); gap: 1.6rem; }
+.tile {
+  position: relative; aspect-ratio: 16 / 10; border-radius: 1.1rem;
+  display: flex; align-items: flex-end; padding: 1.2rem 1.4rem;
+  font-size: 1.7rem; font-weight: 600; color: #fff; min-width: 0; --color: #2a323d;
+  background: linear-gradient(140deg, var(--color), color-mix(in srgb, var(--color) 55%, #000));
+  outline: .3rem solid transparent; outline-offset: .25rem;
+  opacity: .72; transition: transform .12s, opacity .12s;
+}
+.tile.focus { outline-color: var(--focus); opacity: 1; transform: scale(1.06); z-index: 1; }
+.tile .badge {
+  position: absolute; top: 1rem; right: 1.1rem; font-size: .95rem; font-weight: 500;
+  padding: .15rem .6rem; border-radius: 1rem; background: #0007;
+}
+#problem { margin: 2rem 0 0; padding: .8rem 1rem; border-radius: .6rem; font-size: 1.05rem;
+  background: #ffb45422; color: var(--warn); overflow-wrap: anywhere; }
+
+#settings-view { flex: 1; position: relative; }
+#settings-view #panel { position: absolute; top: 0; bottom: 0; left: 2rem; width: 38rem; background: transparent; }
+#about { margin: 0 1rem; font-size: 1.35rem; display: grid; grid-template-columns: 10rem 1fr; row-gap: .7rem; }
+#about dt { color: var(--dim); }
+#about dd { margin: 0; }

@@ -22,13 +22,15 @@ from pathlib import Path
 
 from aiohttp import WSMsgType, web
 
-from . import NAME, audio, sway
-from .util import input_socket, runtime_dir, sd_notify, setup_logging, watchdog_interval
+from . import NAME, audio, services, sway
+from .apps import HOME, AppManager
+from .util import (IN_CLOSE_WRITE, IN_CREATE, IN_DELETE, IN_MOVED_FROM, IN_MOVED_TO, Inotify,
+                   input_socket, runtime_dir, sd_notify, setup_logging, watchdog_interval)
 
 log = setup_logging("hub")
 
 PORT = 8080
-HOME_WORKSPACE = "home"
+SCALES = ("auto", "1", "1.25", "1.5", "2")
 SWAY_UI_MODE = "tvbox-ui"                # binding mode defined in the sway config
 PORT_KEY = web.AppKey("port", int)
 
@@ -47,6 +49,20 @@ def release_version() -> str:
     return "dev"
 
 
+def display_conf() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / NAME / "display.conf"
+
+
+def display_scale() -> str:
+    """The scale setting tvbox-display applies (see pkgs/tvbox-session)."""
+    try:
+        values = [line[6:].strip() for line in display_conf().read_text().splitlines()
+                  if line.startswith("scale=")]
+    except OSError:
+        values = []
+    return values[-1] if values and values[-1] in SCALES else "auto"
+
+
 def lan_address() -> str:
     """The address other devices on the LAN reach the box at (no traffic is sent)."""
     with contextlib.suppress(OSError), socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -61,14 +77,14 @@ class Hub:
         self.view = "main"                    # view the menu opens with
         self.base_mode = "app"                # input mode outside the overlay: app | mouse
         self.app: str | None = None           # focused app (workspace)
-        self.apps: list[dict] = []
+        self.apps = AppManager(self)
         self.volume: int | None = None
         self.muted = False
         self.sinks: list[dict] = []
         self.config_errors: list[str] = []
         self.input_connected = False
         self._input: asyncio.StreamWriter | None = None
-        self._clients: set[web.WebSocketResponse] = set()
+        self._clients: dict[web.WebSocketResponse, str] = {}    # -> role: overlay | home
         self._volume_pending = 0
         self._volume_task: asyncio.Task | None = None
         self._tasks: set[asyncio.Task] = set()
@@ -76,7 +92,9 @@ class Hub:
     # -- state --------------------------------------------------------------
     def state(self) -> dict:
         return {"type": "state", "overlay": self.overlay, "view": self.view,
-                "mouse": self.base_mode == "mouse", "app": self.app, "apps": self.apps,
+                "mouse": self.base_mode == "mouse", "app": self.app,
+                "services": self.apps.state(), "service_errors": self.apps.errors,
+                "display_scale": display_scale(), "kernel": os.uname().release,
                 "volume": self.volume, "muted": self.muted, "sinks": self.sinks,
                 "config_errors": self.config_errors, "input_connected": self.input_connected,
                 "version": release_version(), "hostname": socket.gethostname(),
@@ -84,11 +102,14 @@ class Hub:
 
     def send(self, message: dict) -> None:
         for ws in list(self._clients):
-            self._spawn(self._send_one(ws, message))
+            self.spawn(self._send_one(ws, message))
 
     async def _send_one(self, ws: web.WebSocketResponse, message: dict) -> None:
         with contextlib.suppress(ConnectionError, RuntimeError):
             await ws.send_json(message)
+
+    def has_overlay(self) -> bool:
+        return "overlay" in self._clients.values()
 
     def push_state(self) -> None:
         self.send(self.state())
@@ -96,7 +117,7 @@ class Hub:
     def osd(self, **fields) -> None:
         self.send({"type": "osd", **fields})
 
-    def _spawn(self, coro) -> asyncio.Task:
+    def spawn(self, coro) -> asyncio.Task:
         task = asyncio.get_running_loop().create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
@@ -126,6 +147,7 @@ class Hub:
         if event == "hello":
             self.config_errors = msg.get("config_errors", [])
             self.app = msg.get("app")
+            await self.apps.refresh()
             if msg.get("mode") == "mouse":
                 self.base_mode = "mouse"
             # Either side may have restarted: make inputd's mode match ours.
@@ -141,8 +163,9 @@ class Hub:
                 self.osd(kind="message", text=f"Mouse mode {'on' if self.base_mode == 'mouse' else 'off'}")
                 self.push_state()
         elif event == "focus":
-            self.app = msg.get("app")
-            await self.refresh_apps()
+            old, self.app = self.app, msg.get("app")
+            self.push_state()
+            await self.apps.focus_changed(old, self.app)
             self.push_state()
         elif event == "config":
             self.config_errors = msg.get("errors", [])
@@ -176,16 +199,16 @@ class Hub:
 
     # -- overlay ------------------------------------------------------------
     async def open_overlay(self, view: str) -> None:
-        if not self._clients:
-            # Without the shell nothing would be drawn, and ui mode would
-            # swallow the controller: stay in app mode.
-            log.warning("system menu requested but tvbox-shell is not connected")
+        if not self.has_overlay():
+            # Without the overlay page nothing would be drawn, and ui mode
+            # would swallow the controller: stay in app mode.
+            log.warning("system menu requested but the shell's overlay is not connected")
             return
         self.overlay, self.view = "menu", view
         self.input_send(cmd="mode", mode="ui")
         self.push_state()
         await self.sway_command(f"mode {SWAY_UI_MODE}")     # keyboard navigation
-        await asyncio.gather(self.refresh_audio(), self.refresh_apps())
+        await asyncio.gather(self.refresh_audio(), self.apps.refresh())
         self.push_state()
 
     async def close_overlay(self) -> None:
@@ -202,14 +225,6 @@ class Hub:
             self.volume, self.muted = volume
         else:
             self.volume = None
-
-    async def refresh_apps(self) -> None:
-        try:
-            workspaces = await sway.request(sway.GET_WORKSPACES)
-        except (ConnectionError, OSError):
-            return
-        self.apps = [{"id": ws["name"], "name": ws["name"], "focused": ws.get("focused", False)}
-                     for ws in workspaces if ws["name"] != HOME_WORKSPACE]
 
     async def _apply_volume(self) -> None:
         # Held triggers arrive faster than wpctl runs: apply what piled up.
@@ -249,23 +264,34 @@ class Hub:
         cmd = msg.get("cmd")
         if cmd == "close":
             await self.close_overlay()
-        elif cmd == "home":
+        elif cmd == "refresh":                  # a settings screen was opened
+            await asyncio.gather(self.refresh_audio(), self.apps.refresh())
+            self.push_state()
+        elif cmd in ("home", "settings"):
             await self.close_overlay()
-            await self.sway_command(f"workspace {HOME_WORKSPACE}")
-        elif cmd == "switch_app":
-            app = str(msg["id"])
-            if not sway_safe(app):
-                raise ValueError(f"bad app id {app!r}")
+            await self.sway_command(f"workspace {HOME}")
+            self.send({"type": "open", "view": "settings" if cmd == "settings" else "home"})
+        elif cmd in ("launch", "switch_app"):
             await self.close_overlay()
-            if await self.sway_command(f"workspace {app}"):
-                self.osd(kind="message", text=next((a["name"] for a in self.apps if a["id"] == app), app))
+            await self.apps.launch(str(msg["id"]))
+        elif cmd == "stop_app":
+            await self.apps.stop(str(msg["id"]))
+        elif cmd == "display_scale":
+            scale = str(msg["scale"])
+            if scale not in SCALES:
+                raise ValueError(f"scale must be one of {', '.join(SCALES)}")
+            display_conf().parent.mkdir(parents=True, exist_ok=True)
+            display_conf().write_text(f"scale={scale}\n")
+            # Our own $SWAYSOCK is stale once sway has been restarted.
+            await audio.run("tvbox-display", "apply", env={"SWAYSOCK": sway.socket_path() or ""})
+            self.push_state()
         elif cmd == "volume":
             delta = int(msg["delta"])
             if not -100 <= delta <= 100:
                 raise ValueError("delta out of range")
             self._volume_pending += delta
             if not (self._volume_task and not self._volume_task.done()):
-                self._volume_task = self._spawn(self._apply_volume())
+                self._volume_task = self.spawn(self._apply_volume())
         elif cmd == "mute":
             await audio.toggle_mute()
             volume = await audio.get_volume()
@@ -286,17 +312,19 @@ class Hub:
                 self.input_send(cmd="mode", mode=self.base_mode)
                 self.push_state()
         elif cmd == "restart_app":
-            unit = f"{NAME}-app@{self.app}.service"
-            if self.app and (await audio.run("systemctl", "--user", "is-active", "-q", unit))[0] == 0:
-                await self.close_overlay()
-                await audio.run("systemctl", "--user", "restart", "--no-block", unit)
-                self.osd(kind="message", text=f"Restarting {self.app}")
+            service = self.apps.get(self.app)
+            await self.close_overlay()
+            if service and await self.apps.restart(service.id):
+                self.osd(kind="message", text=f"Restarting {service.name}")
             else:
                 self.osd(kind="message", text="No app to restart here")
         elif cmd == "restart_session":
             # greetd logs in automatically only once per boot, so sway must be
             # restarted by tvbox-session's loop: the flag tells it this exit
             # is not a logout.
+            # Apps go first: a browser whose compositor vanishes "crashes" and
+            # systemd would bring it straight back in the new session.
+            await self.apps.stop_all()
             (runtime_dir() / "restart-session").touch()
             await self.sway_command("exit")
         elif cmd == "reboot":
@@ -305,11 +333,24 @@ class Hub:
             raise ValueError(f"unknown command {cmd!r}")
         return {"ok": True}
 
+    def watch_services(self) -> None:
+        """Reload services.toml when one of its files is saved."""
+        paths = services.default_paths()
+        inotify = Inotify()
+        for directory in {p.parent for p in paths}:
+            inotify.watch(directory, IN_CLOSE_WRITE | IN_MOVED_TO | IN_MOVED_FROM | IN_CREATE | IN_DELETE)
+
+        def changed() -> None:
+            if any(name == paths[0].name for _dir, _mask, name in inotify.read()):
+                self.apps.reload()
+                self.push_state()
+        asyncio.get_running_loop().add_reader(inotify.fd, changed)
+
     # -- HTTP ---------------------------------------------------------------
     async def ws_handler(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse(heartbeat=20)
         await ws.prepare(request)
-        self._clients.add(ws)
+        self._clients[ws] = request.query.get("role", "")
         await ws.send_json(self.state())
         try:
             async for message in ws:
@@ -320,13 +361,13 @@ class Hub:
                 except (ValueError, KeyError, TypeError) as err:
                     await ws.send_json({"type": "error", "error": str(err)})
         finally:
-            self._clients.discard(ws)
-            if not self._clients:
+            self._clients.pop(ws, None)
+            if not self.has_overlay():
                 await self.close_overlay()      # nobody left to draw the menu
         return ws
 
     async def api_state(self, _request: web.Request) -> web.Response:
-        return web.json_response(self.state() | {"ui_clients": len(self._clients)})
+        return web.json_response(self.state() | {"ui_clients": sorted(self._clients.values())})
 
     async def api_cmd(self, request: web.Request) -> web.Response:
         try:
@@ -345,9 +386,13 @@ class Hub:
         app = web.Application(middlewares=[local_only])
         app[PORT_KEY] = port
 
-        async def overlay(_request):
-            return web.FileResponse(webroot / "overlay.html")
-        app.add_routes([web.get("/overlay", overlay), web.get("/ws", self.ws_handler),
+        def page(name):
+            async def handler(_request):
+                # no-cache: the shell must pick up a new version after an update
+                return web.FileResponse(webroot / name, headers={"Cache-Control": "no-cache"})
+            return handler
+        app.add_routes([web.get("/overlay", page("overlay.html")), web.get("/home", page("home.html")),
+                        web.get("/ws", self.ws_handler),
                         web.get("/api/state", self.api_state), web.post("/api/cmd", self.api_cmd),
                         web.static("/static", webroot)])
         return app
@@ -356,9 +401,12 @@ class Hub:
         runner = web.AppRunner(self.app_factory(port), access_log=None)
         await runner.setup()
         await web.TCPSite(runner, host, port).start()
-        self._spawn(self.input_link())
-        self._spawn(self.refresh_audio())
-        self._spawn(self.sway_command("mode default"))   # in case a previous hub died mid-menu
+        self.spawn(self.input_link())
+        self.spawn(self.refresh_audio())
+        self.spawn(self.sway_command("mode default"))   # in case a previous hub died mid-menu
+        self.spawn(self.apps.window_watch())
+        self.spawn(self.apps.memory_watch())
+        self.watch_services()
         sd_notify("READY=1")
         log.info("listening on http://%s:%d", host, port)
         interval = watchdog_interval()
@@ -381,11 +429,6 @@ async def local_only(request: web.Request, handler):
     if request.host not in allowed or (origin and origin.split("://", 1)[-1] not in allowed):
         raise web.HTTPForbidden(text="tvbox-hub: request from a foreign origin refused\n")
     return await handler(request)
-
-
-def sway_safe(name: str) -> bool:
-    """Workspace names are passed inside a sway command: keep them boring."""
-    return bool(name) and all(c.isalnum() or c in "-_." for c in name)
 
 
 def main() -> None:

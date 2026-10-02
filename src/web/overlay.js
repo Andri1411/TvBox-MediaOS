@@ -3,13 +3,8 @@
 // page keeps track of what is focused.
 'use strict';
 
-const $ = (id) => document.getElementById(id);
 const OSD_MS = 1800;
-const VOLUME_STEP = 5;
 
-let state = {};
-let ws = null;
-let everConnected = false;
 let views = [];          // stack of {name, focus}; last = shown
 let osdTimer = null;
 
@@ -20,56 +15,42 @@ function setVisible() {
   window.webkit?.messageHandlers?.tvbox?.postMessage({ visible });
 }
 
-function send(cmd, extra = {}) {
-  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd, ...extra }));
-}
-
-function bar(percent) {
-  return `<span class="bar"><i style="width:${Math.max(0, Math.min(100, percent))}%"></i></span>`;
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text ?? '';
-  return div.innerHTML;
+function currentService() {
+  return state.services?.find((s) => s.id === state.app);
 }
 
 // ---- menu definition: views -> items ------------------------------------
-// item: {label, value?, html?, disabled?, ok?, left?, right?}
 const VIEWS = {
   main: () => ({
     title: 'Menu',
     items: [
       { label: 'Home', ok: () => send('home') },
-      { label: 'Switch app', value: state.app ?? '', disabled: !state.apps?.length, ok: () => push('apps') },
-      { label: 'Volume',
-        html: state.volume == null ? 'no output' : `${bar(state.volume)} ${state.volume}`,
-        cls: state.muted ? 'muted' : '',
-        disabled: state.volume == null,
-        left: () => send('volume', { delta: -VOLUME_STEP }),
-        right: () => send('volume', { delta: VOLUME_STEP }) },
+      { label: 'Switch app', value: currentService()?.name ?? '', disabled: !state.services?.length, ok: () => push('apps') },
+      volumeItem(),
       { label: 'Mute', value: state.muted ? 'On' : 'Off', disabled: state.volume == null, ok: () => send('mute') },
-      { label: 'Audio output', value: state.sinks?.find((s) => s.default)?.name ?? 'none',
-        disabled: !state.sinks?.length, ok: () => push('outputs') },
-      { label: 'Restart app', value: state.app ?? '', ok: () => send('restart_app') },
+      { label: 'Audio output', value: currentOutput(), disabled: !state.sinks?.length, ok: () => push('outputs') },
+      { label: 'Restart app', value: currentService()?.name ?? '', disabled: !currentService(), ok: () => send('restart_app') },
       { label: 'Mouse mode', value: state.mouse ? 'On' : 'Off', ok: () => send('mouse_toggle') },
-      { label: 'Settings', value: 'later version', disabled: true },
+      { label: 'Settings', ok: () => send('settings') },
       { label: 'Restart session', ok: () => push('confirm_session') },
       { label: 'Reboot', ok: () => push('confirm_reboot') },
     ],
   }),
-  apps: () => ({
-    title: 'Switch app',
-    items: (state.apps ?? []).map((app) => ({
-      label: app.name, value: app.focused ? 'current' : '', ok: () => send('switch_app', { id: app.id }),
-    })),
-    initial: Math.max(0, (state.apps ?? []).findIndex((app) => app.focused)),
-  }),
+  apps: () => {
+    // running apps first, in the configured order
+    const services = [...(state.services ?? [])].sort((a, b) => (a.state === 'stopped') - (b.state === 'stopped'));
+    return {
+      title: 'Switch app',
+      items: services.map((s) => ({
+        label: s.name, value: s.focused ? 'current' : s.state === 'stopped' ? '' : 'running',
+        ok: () => send('switch_app', { id: s.id }),
+      })),
+      initial: Math.max(0, services.findIndex((s) => s.focused)),
+    };
+  },
   outputs: () => ({
     title: 'Audio output',
-    items: (state.sinks ?? []).map((sink) => ({
-      label: sink.name, value: sink.default ? 'current' : '', ok: () => { send('audio_output', { id: sink.id }); pop(); },
-    })),
+    items: outputItems(pop),
     initial: Math.max(0, (state.sinks ?? []).findIndex((sink) => sink.default)),
   }),
   confirm_session: () => ({
@@ -99,12 +80,7 @@ function render() {
     const view = VIEWS[top.name]();
     top.focus = Math.max(0, Math.min(top.focus, view.items.length - 1));
     $('title').textContent = view.title;
-    $('items').innerHTML = view.items.map((item, i) => `
-      <li class="${i === top.focus ? 'focus' : ''} ${item.disabled ? 'disabled' : ''} ${item.cls ?? ''}">
-        <span class="label">${escapeHtml(item.label)}</span>
-        <span class="value">${item.html ?? escapeHtml(item.value)}</span>
-      </li>`).join('');
-    $('items').querySelector('.focus')?.scrollIntoView({ block: 'nearest' });
+    renderItems($('items'), view.items, top.focus);
     const errors = state.config_errors ?? [];
     $('notice').hidden = !errors.length && state.input_connected;
     $('notice').textContent = !state.input_connected ? 'Input daemon is not running.'
@@ -117,16 +93,9 @@ function render() {
 function nav(button) {
   if ($('menu').hidden) return;
   const top = views[views.length - 1];
-  const items = VIEWS[top.name]().items;
-  const item = items[top.focus];
-  if (button === 'up' || button === 'down') {
-    if (items.length) top.focus = (top.focus + (button === 'down' ? 1 : -1) + items.length) % items.length;
-    render();
-  } else if (button === 'back') {
-    pop();
-  } else if (item && !item.disabled && item[button]) {
-    item[button]();           // ok / left / right
-  }
+  if (button === 'back') { pop(); return; }
+  top.focus = listNav(VIEWS[top.name]().items, top.focus, button);
+  if (views[views.length - 1] === top) render();
 }
 
 function showOsd(msg) {
@@ -162,20 +131,4 @@ function onMessage(msg) {
   }
 }
 
-function connect() {
-  ws = new WebSocket(`ws://${location.host}/ws`);
-  ws.onopen = () => {
-    // The hub came back, possibly as a new version: start from a fresh page.
-    if (everConnected) location.reload();
-    everConnected = true;
-  };
-  ws.onmessage = (event) => onMessage(JSON.parse(event.data));
-  ws.onclose = () => {
-    state = {};
-    views = [];
-    render();
-    setTimeout(connect, 1000);
-  };
-}
-
-connect();
+connect('overlay', onMessage, () => { views = []; render(); });

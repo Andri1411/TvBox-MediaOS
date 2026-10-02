@@ -5,10 +5,10 @@ pkgrel=1
 pkgdesc="tvbox kiosk session (greetd autologin, sway)"
 arch=(any)
 license=(GPL-3.0-or-later)
-depends=(greetd sway swaybg foot pango noto-fonts noto-fonts-emoji jq iproute2)
+depends=(greetd sway swaybg foot noto-fonts noto-fonts-emoji jq)
 source=(greetd.toml greetd.service.conf tvbox-session sway.config
-        tvbox-session.target tvbox-display tvbox-status)
-sha256sums=(SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
+        tvbox-session.target tvbox-display)
+sha256sums=(SKIP SKIP SKIP SKIP SKIP SKIP)
 
 package() {
     local d=$pkgdir
@@ -18,5 +18,4 @@ package() {
     install -Dm644 sway.config          "$d/usr/share/tvbox/sway/config"
     install -Dm644 tvbox-session.target "$d/usr/lib/systemd/user/tvbox-session.target"
     install -Dm755 tvbox-display        "$d/usr/bin/tvbox-display"
-    install -Dm755 tvbox-status         "$d/usr/bin/tvbox-status"
 }

@@ -439,3 +439,156 @@ buttons through the same `button` command the tests use (Phase 5).
 - **Volume:** the box controls its own output volume (triggers, menu, later
   the phone). This is a requirement, not a convenience: it must keep working
   for every output, including Bluetooth.
+
+## Phase 3 — launcher, browser profiles, YouTube TV, Jellyfin client
+
+### Browser: Chromium from [extra], Widevine fetched on the box
+Tested in the VM with Chromium 153:
+- `youtube.com/tv` serves the TV interface with a webOS smart-TV user agent;
+  sign-in offers a QR code / `yt.be/activate` code, so no keyboard is needed.
+  Guest mode, playback (720p VP9 in software), Start = play/pause and d-pad
+  navigation work with the controller.
+- Widevine: Chromium has none. With Google's `WidevineCdm` directory in
+  `/var/lib/tvbox/WidevineCdm` and a hint file
+  (`<profile>/WidevineCdm/latest-component-updated-widevine-cdm`) pointing at
+  it, `requestMediaKeySystemAccess("com.widevine.alpha")` succeeds. No file in
+  Chromium's install directory is touched.
+- Extensions install through managed policy (`ExtensionInstallForcelist`), and
+  Chromium still honours `--load-extension` for our own scripts in Phase 4.
+
+Why not Google Chrome: its terms don't allow redistribution, and `[tvbox]` is
+a public repository; Chrome also ignores `--load-extension`, which Phase 4
+needs. Why not ship the Widevine module in a package: same redistribution
+problem. Instead `tvbox-widevine-update` (root) reads Google's apt index for
+Chrome, downloads the `.deb`, checks its SHA-256 against the index, and
+extracts only the module. It runs once at first boot and after pacman
+upgrades `chromium` (a hook), i.e. never by itself later. If it fails, DRM
+services don't play until it succeeds; everything else works.
+
+**Still to verify on hardware:** actual DRM playback on Netflix/Disney+
+(needs accounts), and VA-API decoding (`chrome://gpu`, `chrome://media-internals`).
+The flags are set (`AcceleratedVideoDecodeLinuxGL`,
+`AcceleratedVideoDecodeLinuxZeroCopyGL`, `VaapiIgnoreDriverChecks`), but their
+names change between Chromium versions and the VM has no GPU.
+
+### uBlock Origin Lite, by policy
+Classic uBlock Origin needs Manifest V2, which Chromium 153 no longer loads.
+uBO Lite is force-installed from the Chrome Web Store through
+`/etc/chromium/policies/managed/tvbox.json` and updates itself. It applies to
+every browser service; a per-service off switch is not there yet (it would be
+a hostname list in uBO Lite's managed settings). The same policy file turns
+off the password manager, autofill, translate, notifications and metrics.
+
+### One Chromium instance per service
+`tvbox-app@<id>.service` runs `tvbox-app <id>`, which builds the command line
+from `services.toml`: own `--user-data-dir` under
+`~/.local/share/tvbox/profiles/<id>` (logins persist), `--kiosk`, Wayland,
+`--class=tvbox-<id>`, disk cache on tmpfs (`$XDG_RUNTIME_DIR`, 256 MB cap),
+`--password-store=basic` (there is no keyring daemon), DevTools on a random
+loopback port recorded in the profile. Separate instances cost memory (32 GB
+is plenty) and buy isolation: a crashed or wedged Netflix doesn't take
+YouTube with it, and per-service flags and user agents are trivial.
+
+### Windows are placed by cgroup, not by app id
+The hub listens for new sway windows, reads the window's pid, finds the
+`tvbox-app@<id>` unit in `/proc/<pid>/cgroup` and moves the window to
+workspace `<id>`. This works for any program without knowing its app id
+(Jellyfin, popups a site opens, a service the user added), and also when an
+app is slow to start and the user has gone elsewhere meanwhile.
+
+### Switching away
+- Leaving a browser service pauses its `<video>`/`<audio>` elements through
+  DevTools (`pause = false` in services.toml turns that off). Native apps are
+  not paused yet (Jellyfin keeps playing in the background; to be handled
+  with its own API or a key in Phase 4/6).
+- Apps keep running in the background. When available memory drops under
+  1.5 GB, the least recently used background app is stopped (checked on
+  every launch and once a minute).
+- A crashed app is restarted by systemd in place. An app that exits cleanly
+  stays stopped and the hub returns to the home screen when its workspace is
+  empty.
+
+### Home screen
+A second window of `tvbox-shell` (WebKitGTK, page `/home` from the hub) on
+workspace `home`. Unlike the overlay it has keyboard focus, so the
+controller's keys arrive as ordinary key events and inputd needs no special
+mode. Tiles are text on the service's colour: no third-party logos are
+shipped. Settings so far: audio output, volume, display scale, restart
+session, reboot, about. Wi-Fi, Bluetooth and updates are visible but
+disabled: Wi-Fi passwords need the on-screen keyboard (Phase 4) or the phone
+(Phase 5); Bluetooth and updates are Phase 6.
+
+### Jellyfin: native client from the AUR
+`jellyfin-desktop` 2.0.0 (the Qt6 successor of Jellyfin Media Player) is
+pinned in `pkgs/aur.list` and compiled into `[tvbox]`. `--tv --fullscreen`
+starts its TV layout; it runs in the VM up to the server address prompt.
+Typing the server address needs a keyboard once (USB keyboard now; on-screen
+keyboard or phone later). It is linked against Qt and mpv from [extra], so it
+must be rebuilt when those change sonames; CI rebuilds on every push.
+
+### Tried and didn't work (Phase 3)
+- **Builder: build dependencies of the first AUR package with dependencies.**
+  `pacman` refused to install anything because `[_buildlocal]` had been added
+  to pacman.conf without syncing its database. xpadneo had not hit this (no
+  build dependencies). `build-packages.sh` now syncs after adding the repo.
+- **makepkg's split `-debug` packages** landed in the repo; they are deleted
+  after each build.
+- **`[hidden]` vs CSS grid with `1fr` columns:** tiles overflowed the screen;
+  `minmax(0, 1fr)` fixes it.
+- **Hub opening the menu when only the home page was connected:** the hub
+  counted any WebSocket client as "the shell". Pages now announce their role
+  and the menu needs the overlay page.
+- **`$SWAYSOCK` in long-running services after "restart session":** stale.
+  `tvbox-display` gets the current socket from the hub; everything else in
+  the hub already looked the socket up itself.
+- **foot as a stand-in app in tests:** exits with status 1 when its window
+  is closed, which systemd rightly treats as a crash. The test services wrap
+  it (`sh -c 'foot; true'`).
+- **Loading a video by URL into YouTube TV** (`location.href = …/tv#/watch?v=…`)
+  reloads the app and lands on the account chooser; setting `location.hash`
+  in the running app works. Only relevant for tests.
+- **Apps after "restart session":** a browser whose compositor disappears
+  exits with an error, so systemd restarted it into the new session, and its
+  window appeared before the hub was listening to sway again and stayed on
+  the home workspace. Two fixes: "restart session" stops all apps first, and
+  the hub places every existing window whenever it (re)connects to sway, which
+  also covers a sway crash and a hub restart.
+- **Input test pressing A on the home screen:** with the launcher in place,
+  Enter there starts YouTube. The input test now works on an empty workspace.
+
+### Phase 3 status
+**Tested in QEMU.** `make qemu-install` (clean install from a fresh ISO, 24
+checks) and `make qemu-session` (99 checks: input 39, system menu 29,
+launcher 24, keyboard and screen 7) pass. The launcher checks use the fake
+Xbox pad: launch from the home screen tiles, switch between running services,
+windows moved to their service's workspace, crash → restart in place, clean
+exit → back to home, Restart app from the menu, services.toml overrides and a
+broken file, display scale, and a browser service on a page served inside the
+VM (own app id and workspace, user agent, profile and tmpfs cache, controller
+keys reaching the page, Widevine available, uBlock Origin Lite installed,
+video paused when leaving, still running in the background).
+
+Checked by hand in the VM, with real internet: YouTube's TV interface loads
+with the TV user agent; its sign-in screen offers QR/phone-code sign-in; guest
+mode, d-pad navigation, video playback and Start = play/pause work; going
+home pauses the video. Jellyfin's client starts in TV mode and asks for the
+server address. The Widevine module was fetched from Google at first boot.
+
+**Not testable in QEMU, needs the real box (and your accounts):**
+- signing in to YouTube with Premium, and that the sign-in survives a reboot;
+- Netflix and Disney+ actually playing (Widevine licence exchange), their
+  resolution, and whether they accept this Chromium at all;
+- VA-API hardware decoding for H.264/VP9/AV1 and dropped frames at 1080p/4K
+  (`chrome://gpu`, `chrome://media-internals`, `vainfo`);
+- Jellyfin against your server, with mpv using VA-API, and its controller
+  navigation;
+- voice search on YouTube TV (needs a microphone; none on the controller);
+- memory use with all five services alive; HDMI audio.
+
+**Known gaps, by design for now:** no on-screen keyboard yet, so typing
+(Jellyfin server address, Netflix/Disney+ login, YouTube text search with a
+physical keyboard layout) needs a USB keyboard until Phase 4/5; Netflix and
+Disney+ are plain desktop sites until the Phase 4 navigation scripts;
+Floatplane points at `floatplane.com/tv`, unverified until Phase 4; native
+apps are not paused when switching away; uBlock Origin Lite has no
+per-service off switch.

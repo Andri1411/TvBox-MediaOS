@@ -8,7 +8,9 @@ arch=(any)
 license=(GPL-3.0-or-later)
 install=tvbox-base.install
 depends=(
-    tvbox-release tvbox-keyring tvbox-session tvbox-core
+    tvbox-release tvbox-keyring tvbox-session tvbox-core tvbox-browser
+    # native Jellyfin client (from pkgs/aur.list)
+    jellyfin-desktop
     # kernel and boot
     linux-lts linux-lts-headers linux-firmware intel-ucode mkinitcpio
     grub efibootmgr grub-btrfs inotify-tools

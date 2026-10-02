@@ -8,3 +8,4 @@ greetd.service
 grub-btrfsd.service
 snapper-cleanup.timer
 fstrim.timer
+tvbox-widevine.service

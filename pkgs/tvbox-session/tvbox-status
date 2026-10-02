@@ -1,13 +1,21 @@
 #!/bin/bash
-# Phase 1 placeholder screen: shows that the box is up and how to reach it.
+# Phase 1 placeholder screen until the home screen exists (Phase 3): renders
+# host/address/uptime into an image and shows it as the sway background.
 # shellcheck source=/dev/null
 . /usr/share/tvbox/release 2>/dev/null || true
+img=${XDG_RUNTIME_DIR:-/tmp}/tvbox-status.png
 while :; do
-    clear
-    printf '\n\n   tvbox %s\n\n' "${VERSION:-?}"
-    printf '   host     %s\n' "$(cat /etc/hostname)"
-    printf '   address  %s\n' "$(ip -4 -o addr show scope global | awk '{print $4}' | paste -sd' ')"
-    printf '   uptime   %s\n' "$(uptime -p)"
-    printf '\n   The home screen arrives in a later version.\n'
+    text="tvbox ${VERSION:-?}
+
+host      $(cat /etc/hostname)
+address   $(ip -4 -o addr show scope global | awk '{print $4}' | paste -sd' ')
+uptime    $(uptime -p)
+
+The home screen arrives in a later version."
+    if pango-view --no-display --font="Noto Sans Mono 28" --foreground="#d8dee9" \
+            --background="#101418" --margin=60 --text="$text" -o "$img.tmp" 2>/dev/null; then
+        mv -f "$img.tmp" "$img"
+        swaymsg output '*' bg "$img" center '#101418' >/dev/null
+    fi
     sleep 30
 done

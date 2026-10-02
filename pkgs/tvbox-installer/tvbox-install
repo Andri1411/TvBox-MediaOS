@@ -227,6 +227,9 @@ install_packages() {
     run pacman-key --populate "$NAME"
     pacman_conf
     run pacstrap -C /tmp/pacstrap.conf -K "$MNT" base "$NAME-base"
+    # The sync db came from the embedded repo. Drop it so the installed system
+    # fetches the real (signed) one from its own mirrorlist on the next -Sy.
+    rm -f "$MNT/var/lib/pacman/sync/$NAME".{db,files}{,.sig}
 }
 
 chr() { run arch-chroot "$MNT" "$@"; }
@@ -304,6 +307,8 @@ END
            -e 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=2/' \
            -e 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3 rd.udev.log_level=3"/' \
            "$MNT/etc/default/grub"
+    sed -i 's/^#\?GRUB_BTRFS_SUBMENUNAME=.*/GRUB_BTRFS_SUBMENUNAME="tvbox snapshots"/' \
+           "$MNT/etc/default/grub-btrfs/config"
     chr mkinitcpio -P
     chr "/usr/share/libalpm/scripts/$NAME-grub-update"
 }

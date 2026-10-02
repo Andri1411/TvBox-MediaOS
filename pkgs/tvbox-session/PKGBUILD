@@ -5,7 +5,7 @@ pkgrel=1
 pkgdesc="tvbox kiosk session (greetd autologin, sway)"
 arch=(any)
 license=(GPL-3.0-or-later)
-depends=(greetd sway swaybg foot noto-fonts noto-fonts-emoji jq iproute2)
+depends=(greetd sway swaybg foot pango noto-fonts noto-fonts-emoji jq iproute2)
 source=(greetd.toml greetd.service.conf tvbox-session sway.config
         tvbox-session.target tvbox-display tvbox-status)
 sha256sums=(SKIP SKIP SKIP SKIP SKIP SKIP SKIP)

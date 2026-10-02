@@ -75,13 +75,14 @@ log "booting installed system"
 pid=$!
 trap '$qmp quit 2>/dev/null || kill "$pid" 2>/dev/null || true; cleanup' EXIT
 
+boot_start=$SECONDS
 deadline=$((SECONDS + boot_timeout))
 until ssh_vm true 2>/dev/null; do
     kill -0 "$pid" 2>/dev/null || die "QEMU exited during boot (see $state/qemu-boot.out)"
     ((SECONDS < deadline)) || die "no SSH after ${boot_timeout}s"
     sleep 10
 done
-log "SSH up after $SECONDS s"
+log "SSH up after $((SECONDS - boot_start)) s"
 
 failed=0
 check() {  # check <description> <remote command>
@@ -103,16 +104,17 @@ check "/boot is inside @"           '[ "$(findmnt -no SOURCE --target /boot)" = 
 check "linux-lts running"           'uname -r | grep -q lts'
 check "no failed units"             'systemctl --failed --no-legend | grep . && exit 1 || true'
 check "greetd + sway session as tv" 'pgrep -u tv -x sway'
+check "status screen rendered"      'for i in $(seq 30); do [ -s /run/user/$(id -u tv)/tvbox-status.png ] && exit 0; sleep 2; done; exit 1'
 check "sway responds over IPC"      'sudo -u tv env XDG_RUNTIME_DIR=/run/user/$(id -u tv) sh -c "swaymsg -s \$(ls \$XDG_RUNTIME_DIR/sway-ipc.*.sock | head -1) -t get_outputs" | grep -q "\"active\": true"'
 check "user services started"       'systemctl --user -M tv@ is-active tvbox-session.target'
 check "snapper config"              'snapper -c root list >/dev/null'
 check "zram swap active"            'swapon --show | grep -q zram'
 check "journald size limit"         'systemd-analyze cat-config systemd/journald.conf | grep -q SystemMaxUse=64M'
 check "suspend disabled"            'systemd-analyze cat-config systemd/sleep.conf | grep -q AllowSuspend=no'
-check "sshd password auth off"      'sshd -T | grep -qx "passwordauthentication no"'
+check "sshd password auth off"      'sshd -T | grep -qix "passwordauthentication no"'
 check "[tvbox] repo configured"     'pacman-conf -r tvbox >/dev/null && pacman-key --list-keys D605F45D284E377016CC5C3B14BC0D4639884EB7 >/dev/null'
 check "pacman makes pre/post snapshots" \
-    'before=$(snapper -c root --csvout list | wc -l); pacman -S --noconfirm tree >/dev/null 2>&1; after=$(snapper -c root --csvout list | wc -l); [ $((after - before)) -eq 2 ]'
+    'sed "/^\[tvbox\]/,/^\$/d" /etc/pacman.conf > /tmp/pacman-notvbox.conf; before=$(snapper -c root --csvout list | wc -l); pacman --config /tmp/pacman-notvbox.conf -Sy --noconfirm tree; after=$(snapper -c root --csvout list | wc -l); [ $((after - before)) -eq 2 ]'
 check "snapshots appear in GRUB menu" \
     'for i in $(seq 30); do grep -q "snapshots" /boot/grub/grub-btrfs.cfg 2>/dev/null && exit 0; sleep 2; done; exit 1'
 

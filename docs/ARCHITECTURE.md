@@ -439,6 +439,6 @@ Settled:
 7. **Home screen/overlay:** WebKitGTK (`tvbox-shell`, §3.7).
 8. **Browser:** Chrome vs Chromium+Widevine decided by testing in Phase 3.
 
-Still open:
-
-- **Repo hosting and signing** (see DECISIONS.md, "Pending: repo hosting").
+9. **Repo hosting and signing:** CI builds, signs and publishes `[tvbox]` to
+   GitHub Pages at `https://andri1411.github.io/mediaOS/x86_64`. See
+   DECISIONS.md, "Package repository: GitHub Pages, signed in CI".

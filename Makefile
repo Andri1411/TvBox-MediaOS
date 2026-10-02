@@ -5,7 +5,7 @@ export QEMU_MEM QEMU_CPUS QEMU_DISK_SIZE QEMU_HUB_PORT QEMU_SSH_PORT
 
 RUN := scripts/run-in-builder.sh
 
-.PHONY: help builder packages repo iso serve-repo qemu-iso qemu-disk qemu-smoke \
+.PHONY: help builder packages repo iso pages serve-repo qemu-iso qemu-disk qemu-smoke \
         qemu-reset lint test clean distclean
 
 help: ## Show this help
@@ -23,6 +23,9 @@ repo: packages ## Assemble the pacman repo (build/repo) from build/pkgs
 
 iso: repo ## Build the installer ISO into build/iso (needs a privileged container)
 	RUN_PRIVILEGED=1 $(RUN) scripts/build-iso.sh
+
+pages: repo ## Stage build/repo as a static site in build/pages (CI publishes it)
+	scripts/stage-pages.sh
 
 serve-repo: ## Serve build/repo over HTTP so a QEMU guest can pacman -Syu from it
 	scripts/serve-repo.sh

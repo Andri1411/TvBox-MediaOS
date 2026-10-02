@@ -1,8 +1,11 @@
 # Where the installed system fetches [tvbox] packages from.
 # Included from /etc/pacman.conf by the installer:
 #   [tvbox]
+#   SigLevel = Required
 #   Include = /etc/pacman.d/tvbox-mirrorlist
 #
-# The real URL is decided in Phase 1 (see docs/ARCHITECTURE.md, open questions).
-# For QEMU testing against `make serve-repo` on the dev host:
+# Published by CI (.github/workflows/ci.yml) to GitHub Pages on every push to main.
+Server = https://andri1411.github.io/mediaOS/$arch
+
+# For QEMU testing against `make serve-repo` on the dev host, use instead:
 #Server = http://10.0.2.2:8800/repo

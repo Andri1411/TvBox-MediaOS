@@ -22,14 +22,46 @@ jobs:
   build:
     needs: lint
     runs-on: ubuntu-24.04
+    outputs:
+      publish: ${{ steps.flags.outputs.publish }}
+    env:
+      HAS_KEY: ${{ secrets.TVBOX_SIGNING_KEY != '' }}
+      # Only signed builds from main are published to the box.
+      PUBLISH: ${{ secrets.TVBOX_SIGNING_KEY != '' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
+      - id: flags
+        run: echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # pkgver uses the commit count
+
+      - name: Import signing key
+        if: env.HAS_KEY == 'true'
+        env:
+          TVBOX_SIGNING_KEY: ${{ secrets.TVBOX_SIGNING_KEY }}
+        run: |
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          install -d -m 700 "$GNUPGHOME"
+          printf '%s\n' "$TVBOX_SIGNING_KEY" | gpg --batch --import
+          fpr=$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr:/ {print $10; exit}')
+          # The builder container starts its own agent on the mounted keyring.
+          gpgconf --kill gpg-agent
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "SIGN_KEY=$fpr" >> "$GITHUB_ENV"
+
       - run: make builder CONTAINER=docker
       - run: make repo CONTAINER=docker
+      - name: Check signatures
+        if: env.HAS_KEY == 'true'
+        run: |
+          shopt -s nullglob
+          for f in build/repo/*.pkg.tar.zst build/repo/tvbox.db.tar.gz; do
+            test -f "$f.sig" || { echo "missing signature: $f"; exit 1; }
+          done
+
       - if: ${{ inputs.iso }}
         run: make iso CONTAINER=docker
+
       - uses: actions/upload-artifact@v4
         with:
           name: repo
@@ -39,3 +71,24 @@ jobs:
         with:
           name: iso
           path: build/iso/*.iso
+
+      - if: env.PUBLISH == 'true'
+        run: make pages
+      - if: env.PUBLISH == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/pages
+
+  publish:
+    needs: build
+    if: needs.build.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

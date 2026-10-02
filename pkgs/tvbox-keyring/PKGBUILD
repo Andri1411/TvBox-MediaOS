@@ -1,0 +1,18 @@
+# Public key that signs [tvbox] packages, installed into pacman's keyring.
+# Generated once by scripts/gen-signing-key.sh.
+pkgname=tvbox-keyring
+pkgver=${TVBOX_PKGVER:-0.0.0}
+pkgrel=1
+pkgdesc="tvbox package signing key"
+arch=(any)
+license=(GPL-3.0-or-later)
+install=tvbox-keyring.install
+source=(tvbox.gpg tvbox-trusted tvbox-revoked)
+sha256sums=(SKIP SKIP SKIP)
+
+package() {
+    local f
+    for f in tvbox.gpg tvbox-trusted tvbox-revoked; do
+        install -Dm644 "$f" "$pkgdir/usr/share/pacman/keyrings/$f"
+    done
+}

@@ -71,8 +71,23 @@ Name `tvbox`; automatic boot fallback instead of controller-driven GRUB menu;
 32 GB RAM, so all services may stay alive in the background; home
 screen/overlay in WebKitGTK; browser chosen by testing in Phase 3.
 
-### Pending: repo hosting
-Where the installed box downloads `[tvbox]` packages from, and who signs them.
-Proposal under discussion: CI builds and signs, publishes to GitHub Pages of
-this repository, private key as an Actions secret, public key in
-`tvbox-keyring`.
+### Package repository: GitHub Pages, signed in CI
+- **Hosting:** every push to `main` builds the repo in CI and, if a signing key
+  is configured, deploys it to GitHub Pages (`make pages` stages it as
+  `x86_64/` with symlinks replaced by real files, since static hosting serves
+  no symlinks). The box's `/etc/pacman.d/tvbox-mirrorlist` points there. Only
+  the latest packages are hosted; old versions are not needed because rollback
+  uses snapper snapshots, not package downgrades.
+- **Signing:** one ed25519 key without passphrase, created once by
+  `scripts/gen-signing-key.sh` on the owner's machine. The private half lives
+  only in the GitHub secret `TVBOX_SIGNING_KEY` (plus the owner's backup);
+  the public half is committed in `pkgs/tvbox-keyring` and installed into
+  pacman's keyring. `[tvbox]` uses `SigLevel = Required`, so the box rejects
+  any unsigned or foreign package. Unsigned builds (no secret, or from
+  branches and PRs) are built and uploaded as CI artifacts but never published.
+- **Why not generate the key in the dev session:** the private key would pass
+  through the session transcript. The script refuses to write the private key
+  inside the repository.
+- **Requirement:** GitHub Pages for a private repository needs a paid GitHub
+  plan. With a free account the repository must be public, or the Pages site
+  must come from a separate public repository.

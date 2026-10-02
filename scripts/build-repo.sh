@@ -19,7 +19,7 @@ cp -a "${pkgs[@]}" "$dst/"
 for f in "${pkgs[@]}"; do [[ -f $f.sig ]] && cp -a "$f.sig" "$dst/"; done
 
 add_args=(--new --remove --prevent-downgrade)
-[[ -n ${SIGN_KEY:-} ]] && add_args+=(--sign --verify --key "$SIGN_KEY")
+[[ -n ${SIGN_KEY:-} ]] && add_args+=(--sign --key "$SIGN_KEY")
 repo-add "${add_args[@]}" "$dst/$REPO_NAME.db.tar.gz" "$dst"/*.pkg.tar.zst
 
 # repo-add keeps superseded files around; drop everything not in the db.

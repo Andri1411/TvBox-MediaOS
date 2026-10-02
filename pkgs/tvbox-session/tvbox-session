@@ -7,8 +7,16 @@ export XDG_SESSION_TYPE=wayland
 export LIBVA_DRIVER_NAME=iHD
 export MOZ_ENABLE_WAYLAND=1
 export QT_QPA_PLATFORM=wayland
-# Only takes effect when no GPU acceleration exists (QEMU without virgl).
-export WLR_RENDERER_ALLOW_SOFTWARE=1
+# In a VM (QEMU testing), use wlroots' pixman CPU renderer: Mesa's llvmpipe
+# crashed sway and lost glyphs under QEMU's CPU emulation, and virtio-gpu
+# exposes a render node even without 3D, so that can't be the test. The real
+# box is never a VM and keeps the GLES renderer. Override in
+# /etc/tvbox/session.conf (e.g. WLR_RENDERER=gles2 with QEMU_GL=1).
+if systemd-detect-virt --vm --quiet; then
+    export WLR_RENDERER=pixman
+fi
+# shellcheck source=/dev/null
+if [[ -r /etc/tvbox/session.conf ]]; then set -a; . /etc/tvbox/session.conf; set +a; fi
 
 config=/usr/share/tvbox/sway/config
 fails=0

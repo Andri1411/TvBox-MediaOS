@@ -4,6 +4,9 @@
 # shellcheck source=/dev/null
 . /usr/share/tvbox/release 2>/dev/null || true
 img=${XDG_RUNTIME_DIR:-/tmp}/tvbox-status.png
+# pango-view picks the format from the extension (and segfaults on unknown
+# ones), so the temporary file must end in .png too.
+tmp=${XDG_RUNTIME_DIR:-/tmp}/tvbox-status.new.png
 while :; do
     text="tvbox ${VERSION:-?}
 
@@ -13,8 +16,8 @@ uptime    $(uptime -p)
 
 The home screen arrives in a later version."
     if pango-view --no-display --font="Noto Sans Mono 28" --foreground="#d8dee9" \
-            --background="#101418" --margin=60 --text="$text" -o "$img.tmp" 2>/dev/null; then
-        mv -f "$img.tmp" "$img"
+            --background="#101418" --margin=60 --text="$text" -o "$tmp" 2>/dev/null; then
+        mv -f "$tmp" "$img"
         swaymsg output '*' bg "$img" center '#101418' >/dev/null
     fi
     sleep 30

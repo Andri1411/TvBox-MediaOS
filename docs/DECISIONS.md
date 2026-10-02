@@ -221,3 +221,18 @@ the snapshot's own kernel (`/@snapshots/2/snapshot/boot/vmlinuz-linux-lts`),
 was `systemd-remount-fs` (it tries to apply fstab's root options to the
 overlay). That's harmless, but the Phase 6 health page must not report it
 as a fault while booted into a snapshot.
+- **Mesa llvmpipe under QEMU TCG:** sway crashed in `libgallium` (a jump to a
+  null address in JIT-compiled code). That's also the likely cause of foot's
+  missing glyphs. In a VM, `tvbox-session` now selects wlroots' pixman
+  renderer (`WLR_RENDERER=pixman`). Testing for a GPU render node didn't
+  work: virtio-gpu exposes `/dev/dri/renderD128` even without 3D. The real box
+  is never a VM and keeps the GLES renderer.
+  `/etc/tvbox/session.conf` can override it (e.g. GLES with `QEMU_GL=1`).
+- **pango-view segfaults on an unknown output extension** (`foo.png.tmp`).
+  The status screen's temporary file is now `*.new.png`.
+- **`systemctl restart greetd` lands on the text login:** greetd runs its
+  `initial_session` (auto-login) only once per boot. "Restart session" in
+  the TV menu (Phase 2) must therefore restart sway through
+  `tvbox-session`'s loop (e.g. `swaymsg exit` with a non-zero code), never by
+  restarting greetd. The sway crash above confirmed the loop works: sway
+  came back by itself.

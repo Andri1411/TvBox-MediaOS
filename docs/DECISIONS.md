@@ -212,3 +212,12 @@ dependency tree (kernel, mesa, ...) into the builder. AUR packages still use
   menuentry, with a fixed ID, for the recorded fallback snapshot
   (`/etc/grub.d/` script reading grubenv), and use that for both the
   automatic fallback and "boot into snapshot once" from the TV menu.
+
+### Verified: booting a snapshot (QEMU)
+Selected `@snapshots/2/snapshot` by hand in GRUB's "snapshots" menu. It booted
+the snapshot's own kernel (`/@snapshots/2/snapshot/boot/vmlinuz-linux-lts`),
+`/` was the read-only snapshot under a writable tmpfs overlay
+(`grub-btrfs-overlayfs`), and the sway session started. The only failed unit
+was `systemd-remount-fs` (it tries to apply fstab's root options to the
+overlay). That's harmless, but the Phase 6 health page must not report it
+as a fault while booted into a snapshot.

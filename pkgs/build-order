@@ -2,5 +2,6 @@
 tvbox-release
 tvbox-keyring
 tvbox-session
+tvbox-core
 tvbox-base
 tvbox-installer

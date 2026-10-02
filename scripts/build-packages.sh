@@ -16,6 +16,8 @@ mkdir -p "$out" "$work"
 
 export PKGDEST="$out" SRCDEST="$BUILD_DIR/work/sources" BUILDDIR="$work/makepkg"
 export TVBOX_PKGVER; TVBOX_PKGVER=$(pkg_version)
+# PKGBUILDs are built from a copy; this is where they find src/.
+export TVBOX_SRC="$ROOT/src"
 mkdir -p "$SRCDEST" "$BUILDDIR"
 
 makepkg_args=(--noconfirm --cleanbuild --force)

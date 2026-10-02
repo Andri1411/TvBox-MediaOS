@@ -1,0 +1,36 @@
+# tvbox's own software: input daemon, hub, shell and tvbox-ctl (src/tvbox),
+# default configuration (src/config) and the user units that run them.
+pkgname=tvbox-core
+pkgver=${TVBOX_PKGVER:-0.0.0}
+pkgrel=1
+pkgdesc="tvbox input daemon, hub and on-screen shell"
+arch=(any)
+license=(GPL-3.0-or-later)
+depends=(tvbox-session python python-evdev)
+source=(tvbox-inputd.service uinput.rules modules-load.conf)
+sha256sums=(SKIP SKIP SKIP)
+
+package() {
+    local d=$pkgdir src=${TVBOX_SRC:?set by scripts/build-packages.sh} cmd unit
+    # Not in site-packages: that path changes with every Python minor version
+    # and would force a rebuild. The launchers add /usr/lib/tvbox to sys.path.
+    install -d "$d/usr/lib/tvbox" "$d/usr/bin" "$d/etc/tvbox"
+    cp -r "$src/tvbox" "$d/usr/lib/tvbox/tvbox"
+    find "$d/usr/lib/tvbox" -name __pycache__ -prune -exec rm -rf {} +
+    for cmd in inputd ctl; do
+        printf '%s\n' '#!/usr/bin/python' 'import sys' \
+            'sys.path.insert(0, "/usr/lib/tvbox")' \
+            "from tvbox.$cmd import main" 'sys.exit(main())' > "$d/usr/bin/tvbox-$cmd"
+        chmod 755 "$d/usr/bin/tvbox-$cmd"
+    done
+    install -Dm644 "$src/config/bindings.toml" "$d/usr/share/tvbox/bindings.toml"
+
+    install -Dm644 uinput.rules       "$d/usr/lib/udev/rules.d/60-tvbox-uinput.rules"
+    install -Dm644 modules-load.conf  "$d/usr/lib/modules-load.d/tvbox.conf"
+    # User units are part of the session: enabled by shipping the symlink.
+    install -d "$d/usr/lib/systemd/user/tvbox-session.target.wants"
+    for unit in tvbox-inputd.service; do
+        install -Dm644 "$unit" "$d/usr/lib/systemd/user/$unit"
+        ln -s "../$unit" "$d/usr/lib/systemd/user/tvbox-session.target.wants/$unit"
+    done
+}

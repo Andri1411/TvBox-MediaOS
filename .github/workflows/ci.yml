@@ -25,6 +25,9 @@ jobs:
     outputs:
       publish: ${{ steps.flags.outputs.publish }}
     env:
+      # Runners have both docker and podman; always use the same one, or files
+      # from one build can't be cleaned up by the next.
+      CONTAINER: docker
       HAS_KEY: ${{ secrets.TVBOX_SIGNING_KEY != '' }}
       # Only signed builds from main are published to the box.
       PUBLISH: ${{ secrets.TVBOX_SIGNING_KEY != '' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -49,8 +52,8 @@ jobs:
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
           echo "SIGN_KEY=$fpr" >> "$GITHUB_ENV"
 
-      - run: make builder CONTAINER=docker
-      - run: make repo CONTAINER=docker
+      - run: make builder
+      - run: make repo
       - name: Check signatures
         if: env.HAS_KEY == 'true'
         run: |
@@ -60,7 +63,7 @@ jobs:
           done
 
       - if: ${{ inputs.iso }}
-        run: make iso CONTAINER=docker
+        run: make iso
 
       - uses: actions/upload-artifact@v4
         with:

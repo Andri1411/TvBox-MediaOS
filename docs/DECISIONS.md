@@ -252,3 +252,10 @@ HDMI output, 4K scaling and hotplug; Bluetooth; PipeWire HDMI audio; thermals.
 **Open for later phases:** automatic boot fallback needs its own GRUB entry
 (Phase 6); `systemd-remount-fs` "fails" when booted into a snapshot (health
 page must not flag it); retry output power-on for HDMI hotplug.
+
+### Tried and didn't work: first publish from main
+`make pages` depended on `make repo`, so CI rebuilt every package a second
+time, and without `CONTAINER=docker`, so the runner picked podman. Podman's
+rootless UID mapping couldn't delete the files the docker build had written,
+and the publish failed. `pages` now only stages an existing `build/repo`, and
+the CI build job sets `CONTAINER=docker` for every step.

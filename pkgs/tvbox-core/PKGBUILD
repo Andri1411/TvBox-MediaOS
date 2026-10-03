@@ -10,6 +10,8 @@ depends=(
     tvbox-session tvbox-release python python-evdev python-aiohttp
     # shell: GTK4 layer-shell window showing the web UI
     gtk4 gtk4-layer-shell webkitgtk-6.0 python-gobject python-cairo noto-fonts
+    # on-screen keyboard: types text through sway's virtual-keyboard protocol
+    wtype
     # audio control (wpctl, pw-dump)
     pipewire wireplumber
 )

@@ -9,6 +9,8 @@
 # kind = "browser": its own Chromium instance and profile (logins persist)
 #   url         start page
 #   user_agent  a name from [user_agents], or a full user-agent string
+#   nav         true: add d-pad navigation and automatic on-screen keyboard to
+#               a desktop site (the tvnav extension; site rules in its sites/)
 #   flags       extra Chromium command line flags (list)
 # kind = "native": any program
 #   exec        command line (list)
@@ -34,6 +36,7 @@ id = "netflix"
 name = "Netflix"
 kind = "browser"
 url = "https://www.netflix.com/browse"
+nav = true
 color = "#b1060f"
 
 [[service]]
@@ -41,13 +44,14 @@ id = "disney"
 name = "Disney+"
 kind = "browser"
 url = "https://www.disneyplus.com/home"
+nav = true
 color = "#0e3a8c"
 
 [[service]]
 id = "floatplane"
 name = "Floatplane"
 kind = "browser"
-url = "https://www.floatplane.com/tv"
+url = "https://www.floatplane.com/tv"      # TV interface; needs no TV user agent
 color = "#0085ff"
 
 [[service]]

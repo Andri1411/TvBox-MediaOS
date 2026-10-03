@@ -1,0 +1,7 @@
+/* Focus ring of the tvbox navigation (nav.js). */
+[data-tvnav-focus] {
+  outline: 4px solid #fff !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 8px rgba(0, 0, 0, .55) !important;
+  border-radius: 4px;
+}

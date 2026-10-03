@@ -592,3 +592,123 @@ Disney+ are plain desktop sites until the Phase 4 navigation scripts;
 Floatplane points at `floatplane.com/tv`, unverified until Phase 4; native
 apps are not paused when switching away; uBlock Origin Lite has no
 per-service off switch.
+
+## Phase 4 — navigation scripts, mouse mode, on-screen keyboard
+
+### Floatplane needs nothing special
+`floatplane.com/tv` serves its TV interface with Chromium's normal user agent,
+and signs in by pairing: it shows a QR code and a code for
+`floatplane.com/link`. No user agent override, no navigation script. Whether
+its TV interface navigates well with arrow keys after sign-in still needs an
+account.
+
+### Navigation for desktop sites: a small extension, not DevTools injection
+Netflix and Disney+ (`nav = true` in services.toml) get the `tvnav` extension
+loaded unpacked (`--load-extension`; verified that Chromium 153 still allows
+it). Alternatives considered:
+- *Injecting scripts through DevTools* (`Page.addScriptToEvaluateOnNewDocument`):
+  no extension needed, but it only works while the hub holds a DevTools
+  session, and an attached debugger with `Runtime` enabled is detectable by
+  anti-bot scripts. Not worth the risk on sites that also do DRM.
+- *Chromium's own spatial navigation flag* (`--enable-spatial-navigation`):
+  moves between links only and knows nothing about dialogs, players or
+  `role="button"` elements, which these sites are made of.
+
+`tvnav` is generic: it collects what can be clicked (links, buttons, form
+fields, ARIA roles, focusable elements), moves a focus ring with the arrow
+keys (elements in line with the current one first, then the nearest one in
+that direction), activates with Enter, and keeps the focus inside a dialog or
+cookie banner while one is open. Site knowledge is in
+`sites/<site>.js`, loaded only on that site's domain: when the site's player
+owns the keys (Netflix `/watch`, Disney+ `/play/`, `/video/`), extra
+selectors, and things to ignore. A broken site file leaves the generic
+behaviour in place, and only on that site.
+
+The site files were written from the sites' public structure and checked only
+on their sign-in pages (the focus ring moves, the cookie banner is handled,
+focusing the e-mail field opens the on-screen keyboard). **They need tuning
+with real accounts:** profile pickers, title rows that scroll sideways, and
+the players' controls.
+
+### The extension has a fixed ID and one permission on the hub
+The manifest carries a public key, so the extension ID is always
+`ecgejpihnmlnjmgnejffnelbhbiehbpm` (no private key exists or is needed for an
+unpacked extension). Its background worker may `POST /api/cmd` with exactly
+one command, `text_focus`; the hub refuses everything else from that origin
+and still refuses all other origins.
+
+### On-screen keyboard
+Part of the overlay, so it works over every app. A d-pad grid with layers for
+capitals (shift applies to one letter), symbols, and accented letters
+(Icelandic á é í ó ú ý þ æ ö ð and their capitals, plus ä å ø ü ß ñ ç è à ê);
+X deletes, Start presses Enter and closes, B closes, Y toggles it. A line on
+top echoes what was typed in this session, because the field may be hidden
+behind the keyboard. It opens with Y anywhere, and by itself when a text field
+gets focus in a `nav` site; it closes by itself only if it opened by itself.
+
+How text gets into the app:
+- **Browser services: DevTools `Input.insertText`.** Characters arrive as
+  text input, independent of the keyboard layout.
+- **Everything else: `wtype`**, which types through sway's virtual-keyboard
+  protocol with a keymap made on the fly, so any Unicode character works.
+- Enter, Backspace and arrows go through inputd's virtual keyboard like any
+  bound key.
+
+### Mouse mode
+Left stick moves the pointer (quadratic curve plus a speed ramp while held),
+right stick scrolls, A is the left button (hold to drag), X the right
+button. Speeds are `[mouse] speed` and `scroll_speed` in bindings.toml. The
+cursor is shown only in mouse mode (`seat * hide_cursor 0`, otherwise 100 ms).
+
+### Not done: streaming quality (1080p on Netflix/Disney+)
+The brief asks for bounded experiments (user agent/platform spoofing,
+"1080p" extensions), measured with Netflix's stats overlay. All of them need a
+signed-in account and working Widevine playback, which the VM can't give, so
+nothing was written blind. This is the first thing to do on the real box
+together with you; whatever works becomes a per-service toggle.
+
+### Tried and didn't work (Phase 4)
+- **`wtype` for every character:** Chromium dropped characters that are not
+  on the current layout (í, þ, …), which `wtype` types by switching the
+  virtual keyboard's keymap; terminals and GTK took them. Browsers now get
+  text through DevTools. `wtype` also needs a UTF-8 locale to read its
+  arguments ("Failed to deencode input argv"); the hub sets `LC_ALL=C.UTF-8`.
+- **The shell kept old scripts after an update:** WebKit cached `/static`
+  files, so a new `overlay.html` ran with the old `overlay.js` and the
+  keyboard never appeared. The hub now sends `Cache-Control: no-cache` for
+  everything.
+- **The first page after an extension update had no navigation:** Chromium
+  re-registers a changed unpacked extension while the start page is already
+  loading, so content scripts miss it. The hub checks for the extension's
+  marker after a nav service starts and reloads the page once if needed
+  (seen and verified in the VM).
+- **`scrollIntoView({inline: 'center'})`** scrolled Netflix's sign-in page
+  sideways because its cookie banner is wider than the screen; `nearest`
+  doesn't.
+- **First arrow press on Disney+ landed in the footer** under the cookie
+  banner; hence the dialog rule.
+- **Checking the cursor with a QMP screendump:** the screenshot doesn't
+  include the cursor plane, so cursor visibility in mouse mode is untested in
+  the VM.
+- **The input test pressed Y and then Start:** with the on-screen keyboard
+  real, Y opened it and Start became its Enter key. The test closes the
+  keyboard again before testing bindings.
+
+### Phase 4 status
+**Tested in QEMU.** From a freshly built ISO: `make qemu-install` passes (25
+checks) and `make qemu-session` passes the system menu (29), launcher (24),
+navigation/keyboard/mouse (26) and keyboard-and-screen (7) checks. The input
+checks (39) failed once in that run because of the test bug above, and passed
+when rerun with the fix on the same installed VM. The new checks drive a
+desktop-style test page with the fake pad: focus ring, in-line movement,
+dialogs keeping the focus, role-only buttons, disabled elements skipped, A
+activates once; focusing a text field opens the keyboard; typing letters,
+capitals, accented letters, delete, Enter submits and closes; Y/B open and
+close it; the extension's narrow access to the hub; mouse mode right click,
+drag, and the speed setting. Checked by hand: Netflix's and Disney+'s sign-in
+pages (focus ring, cookie banner, keyboard on the e-mail field).
+
+**Needs the real box and your accounts:** Netflix and Disney+ after sign-in
+(profile picker, rows, player), Floatplane's TV interface after sign-in,
+streaming quality experiments, how the keyboard and the focus ring look on a
+TV from the couch, mouse-mode speed and the cursor on the TV.

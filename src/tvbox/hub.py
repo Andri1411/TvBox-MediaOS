@@ -31,6 +31,12 @@ log = setup_logging("hub")
 
 PORT = 8080
 SCALES = ("auto", "1", "1.25", "1.5", "2")
+# Our navigation extension (src/extensions/tvnav; the id follows from the key
+# in its manifest). It may tell the hub that a text field got focus.
+EXTENSION_ORIGIN = "chrome-extension://ecgejpihnmlnjmgnejffnelbhbiehbpm"
+# Keys of the on-screen keyboard that are not text.
+OSK_KEYS = {"backspace": "BackSpace", "enter": "Return", "left": "Left", "right": "Right", "tab": "Tab"}
+MAX_TYPE = 500
 SWAY_UI_MODE = "tvbox-ui"                # binding mode defined in the sway config
 PORT_KEY = web.AppKey("port", int)
 
@@ -73,7 +79,8 @@ def lan_address() -> str:
 
 class Hub:
     def __init__(self):
-        self.overlay: str | None = None       # None | "menu"
+        self.overlay: str | None = None       # None | "menu" | "keyboard"
+        self.keyboard_auto = False            # keyboard opened because a text field got focus
         self.view = "main"                    # view the menu opens with
         self.base_mode = "app"                # input mode outside the overlay: app | mouse
         self.app: str | None = None           # focused app (workspace)
@@ -185,7 +192,10 @@ class Hub:
         elif action == "ui:home":
             await self.command({"cmd": "home"})
         elif action == "ui:keyboard":
-            self.osd(kind="message", text="The on-screen keyboard arrives in a later version")
+            if self.overlay == "keyboard":
+                await self.close_overlay()
+            else:
+                await self.open_overlay("main", "keyboard")
         elif kind == "volume":
             await self.command({"cmd": "mute"} if arg == "mute" else {"cmd": "volume", "delta": int(arg)})
         elif action == "audio:next_output":
@@ -198,18 +208,23 @@ class Hub:
             log.info("action %s is not handled yet", action)
 
     # -- overlay ------------------------------------------------------------
-    async def open_overlay(self, view: str) -> None:
+    async def open_overlay(self, view: str, kind: str = "menu", auto: bool = False) -> None:
+        """Show the system menu (kind "menu") or the on-screen keyboard."""
         if not self.has_overlay():
             # Without the overlay page nothing would be drawn, and ui mode
             # would swallow the controller: stay in app mode.
-            log.warning("system menu requested but the shell's overlay is not connected")
+            log.warning("overlay requested but the shell's overlay page is not connected")
             return
-        self.overlay, self.view = "menu", view
+        self.overlay, self.view, self.keyboard_auto = kind, view, auto
         self.input_send(cmd="mode", mode="ui")
         self.push_state()
-        await self.sway_command(f"mode {SWAY_UI_MODE}")     # keyboard navigation
-        await asyncio.gather(self.refresh_audio(), self.apps.refresh())
-        self.push_state()
+        if kind == "menu":
+            await self.sway_command(f"mode {SWAY_UI_MODE}")     # a real keyboard drives the menu
+            await asyncio.gather(self.refresh_audio(), self.apps.refresh())
+            self.push_state()
+        else:
+            # With the on-screen keyboard a real keyboard keeps typing into the app.
+            await self.sway_command("mode default")
 
     async def close_overlay(self) -> None:
         if self.overlay:
@@ -264,6 +279,30 @@ class Hub:
         cmd = msg.get("cmd")
         if cmd == "close":
             await self.close_overlay()
+        elif cmd == "type":                     # on-screen keyboard (later: the phone)
+            text = msg["text"]
+            if not isinstance(text, str) or not 0 < len(text) <= MAX_TYPE or "\0" in text:
+                raise ValueError(f"text must be 1 to {MAX_TYPE} characters")
+            # Browsers get the text through DevTools; everything else through
+            # wtype, which types any Unicode text with sway's virtual-keyboard
+            # protocol, independent of the keyboard layout. (wtype decodes its
+            # arguments with the locale; services have none set.)
+            if not await self.apps.insert_text(self.apps.get(self.app), text):
+                code, _ = await audio.run("wtype", "--", text, env={"LC_ALL": "C.UTF-8"})
+                if code != 0:
+                    raise ValueError("typing failed (is wtype installed?)")
+        elif cmd == "key":
+            if msg["key"] not in OSK_KEYS:
+                raise ValueError(f"key must be one of {', '.join(OSK_KEYS)}")
+            self.input_send(cmd="key", combo=OSK_KEYS[msg["key"]])
+        elif cmd == "keyboard":
+            await self.open_overlay("main", "keyboard")
+        elif cmd == "text_focus":               # from the navigation extension
+            service = self.apps.get(self.app)
+            if msg.get("focused") and not self.overlay and service and service.nav:
+                await self.open_overlay("main", "keyboard", auto=True)
+            elif not msg.get("focused") and self.overlay == "keyboard" and self.keyboard_auto:
+                await self.close_overlay()
         elif cmd == "refresh":                  # a settings screen was opened
             await asyncio.gather(self.refresh_audio(), self.apps.refresh())
             self.push_state()
@@ -374,6 +413,8 @@ class Hub:
             msg = await request.json()
             if not isinstance(msg, dict):
                 raise ValueError("expected a JSON object")
+            if request.headers.get("Origin") == EXTENSION_ORIGIN and msg.get("cmd") != "text_focus":
+                raise ValueError("this origin may only send text_focus")
             if msg.get("cmd") == "action":       # same as a bound button
                 await self.on_action(str(msg["action"]))
                 return web.json_response({"ok": True})
@@ -388,9 +429,14 @@ class Hub:
 
         def page(name):
             async def handler(_request):
-                # no-cache: the shell must pick up a new version after an update
-                return web.FileResponse(webroot / name, headers={"Cache-Control": "no-cache"})
+                return web.FileResponse(webroot / name)
             return handler
+
+        async def no_cache(_request, response):
+            # The shell must pick up new pages and scripts after an update;
+            # WebKit otherwise keeps using cached /static files.
+            response.headers.setdefault("Cache-Control", "no-cache")
+        app.on_response_prepare.append(no_cache)
         app.add_routes([web.get("/overlay", page("overlay.html")), web.get("/home", page("home.html")),
                         web.get("/ws", self.ws_handler),
                         web.get("/api/state", self.api_state), web.post("/api/cmd", self.api_cmd),
@@ -423,10 +469,12 @@ async def local_only(request: web.Request, handler):
     """Loopback is not the same as trusted: a web page running in one of the
     box's own browsers can also send requests to 127.0.0.1. Requests naming
     another origin (cross-site fetch, WebSocket) or another host (DNS
-    rebinding) are refused; the shell's own page and curl pass."""
+    rebinding) are refused; the shell's own page and curl pass. Our own
+    navigation extension may post one command (see api_cmd)."""
     allowed = {f"{h}:{request.app[PORT_KEY]}" for h in ("127.0.0.1", "localhost")}
     origin = request.headers.get("Origin")
-    if request.host not in allowed or (origin and origin.split("://", 1)[-1] not in allowed):
+    extension = origin == EXTENSION_ORIGIN and request.method == "POST" and request.path == "/api/cmd"
+    if request.host not in allowed or (origin and origin.split("://", 1)[-1] not in allowed and not extension):
         raise web.HTTPForbidden(text="tvbox-hub: request from a foreign origin refused\n")
     return await handler(request)
 

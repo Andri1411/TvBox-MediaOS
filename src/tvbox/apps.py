@@ -130,6 +130,8 @@ class AppManager:
             self.active[service.id] = "starting"
             self.hub.osd(kind="message", text=f"Starting {service.name}")
             self.hub.spawn(self.free_memory(keep=service.id))
+            if service.nav:
+                self.hub.spawn(self.check_navigation(service))
         self.hub.push_state()
 
     async def stop(self, service_id: str) -> None:
@@ -155,23 +157,64 @@ class AppManager:
             await self.pause(previous)
         await self.refresh()
 
-    async def pause(self, service: Service) -> None:
-        """Pause playback in a browser service through its DevTools port."""
+    async def devtools(self, service: Service, method: str, params: dict) -> list[dict] | None:
+        """Send one DevTools command to every page of a browser service; the
+        results, or None if the browser could not be reached."""
         port = devtools_port(service.id) if service.kind == "browser" else None
         if not port:
-            return
+            return None
+        results = []
         try:
             timeout = aiohttp.ClientTimeout(total=3)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(f"http://127.0.0.1:{port}/json") as reply:
                     pages = [p for p in await reply.json() if p.get("type") == "page"]
                 for page in pages:
-                    async with session.ws_connect(page["webSocketDebuggerUrl"]) as ws:
-                        await ws.send_json({"id": 1, "method": "Runtime.evaluate",
-                                            "params": {"expression": PAUSE_JS}})
-                        await ws.receive()
+                    async with session.ws_connect(page["webSocketDebuggerUrl"], max_msg_size=0) as ws:
+                        await ws.send_json({"id": 1, "method": method, "params": params})
+                        async for message in ws:
+                            data = json.loads(message.data)
+                            if data.get("id") == 1:
+                                results.append(data.get("result", {}))
+                                break
+            return results or None
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError, KeyError) as err:
-            log.debug("pause %s: %s", service.id, err)
+            log.debug("devtools %s %s: %s", service.id, method, err)
+            return None
+
+    async def check_navigation(self, service: Service) -> None:
+        """Reload a nav-enabled service once if its first page loaded before
+        Chromium had (re)loaded the navigation extension, which happens on the
+        first start after the extension was updated."""
+        probe = {"expression": "document.readyState === 'complete' && "
+                               "document.documentElement.dataset.tvnav === 'on'", "returnByValue": True}
+        for _ in range(30):
+            await asyncio.sleep(1)
+            results = await self.devtools(service, "Runtime.evaluate", probe)
+            if results and results[0].get("result", {}).get("value") is True:
+                return
+            loaded = await self.devtools(service, "Runtime.evaluate",
+                                         {"expression": "document.readyState", "returnByValue": True})
+            if loaded and loaded[0].get("result", {}).get("value") == "complete":
+                await asyncio.sleep(2)        # give the extension a moment after load
+                results = await self.devtools(service, "Runtime.evaluate", probe)
+                if not (results and results[0].get("result", {}).get("value") is True):
+                    log.warning("%s: navigation extension missing on the first page, reloading", service.id)
+                    await self.devtools(service, "Page.reload", {})
+                return
+
+    async def pause(self, service: Service) -> None:
+        """Pause playback in a browser service."""
+        await self.devtools(service, "Runtime.evaluate", {"expression": PAUSE_JS})
+
+    async def insert_text(self, service: Service | None, text: str) -> bool:
+        """Type text into a browser service's focused field. Done through
+        DevTools because Chromium ignores characters typed through a virtual
+        keyboard whose keymap changes on the fly (how wtype types letters
+        that are not on the layout)."""
+        if not service or service.kind != "browser":
+            return False
+        return await self.devtools(service, "Input.insertText", {"text": text}) is not None
 
     # -- housekeeping -------------------------------------------------------
     async def free_memory(self, keep: str | None = None) -> None:

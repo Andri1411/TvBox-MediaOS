@@ -17,8 +17,8 @@ class FakeOutput:
     def tap(self, codes):
         self.events.append(("tap", codes))
 
-    def click(self, down):
-        self.events.append(("click", down))
+    def click(self, down, button):
+        self.events.append(("click", down) if button == "left" else ("click", down, button))
 
     def move(self, dx, dy):
         self.events.append(("move", dx, dy))

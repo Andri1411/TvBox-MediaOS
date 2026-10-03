@@ -60,6 +60,14 @@ def test_invalid_actions(text):
         parse_action(text)
 
 
+def test_mouse_settings(defaults):
+    assert defaults.mouse.speed == 900 and defaults.mouse.scroll_speed == 18
+    cfg = override("[mouse]\nspeed = 1500")
+    assert cfg.mouse.speed == 1500 and cfg.mouse.scroll_speed == 18
+    assert "[mouse].speed" in errors("[mouse]\nspeed = 5")[0]
+    assert "unknown setting" in errors("[mouse]\nwarp = 1")[0]
+
+
 def test_none_unbinds():
     cfg = override('[global]\ny = "none"')
     assert cfg.lookup("y").actions() == []

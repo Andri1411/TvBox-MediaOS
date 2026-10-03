@@ -66,6 +66,12 @@ class Timing:
 
 
 @dataclass(frozen=True)
+class Mouse:
+    speed: float = 900            # pointer px/s at full stick deflection (doubles while held)
+    scroll_speed: float = 18      # wheel notches/s at full deflection
+
+
+@dataclass(frozen=True)
 class DeviceRule:
     """Overrides automatic device classification (first matching rule wins)."""
     name: str = "*"              # glob on the device name
@@ -83,6 +89,7 @@ class DeviceRule:
 @dataclass(frozen=True)
 class Config:
     timing: Timing = Timing()
+    mouse: Mouse = Mouse()
     global_: dict[str, Binding] = field(default_factory=dict)
     apps: dict[str, dict[str, Binding]] = field(default_factory=dict)
     devices: tuple[DeviceRule, ...] = ()
@@ -207,33 +214,38 @@ def _parse_device(raw, where: str, errors: list[str]) -> DeviceRule | None:
     return DeviceRule(raw.get("name", "*"), str(dev_id), profile, raw.get("grab", True), dict(keymap))
 
 
-_TIMING_LIMITS = {"long_press_ms": (150, 5000), "repeat_delay_ms": (50, 5000), "repeat_hz": (1, 60)}
+# Numeric settings: section -> key -> (lowest, highest)
+_NUMBERS = {
+    "timing": {"long_press_ms": (150, 5000), "repeat_delay_ms": (50, 5000), "repeat_hz": (1, 60)},
+    "mouse": {"speed": (100, 5000), "scroll_speed": (1, 100)},
+}
 
 
 def parse(documents: list[tuple[str, dict]]) -> Config:
     """Merge already-decoded TOML documents [(label, data), ...], lowest
     priority first. Raises ConfigError listing every problem found."""
     errors: list[str] = []
-    timing: dict = {}
+    numbers: dict[str, dict] = {section: {} for section in _NUMBERS}
     global_: dict[str, Binding] = {}
     apps: dict[str, dict[str, Binding]] = {}
     devices: list[DeviceRule] = []
     for label, doc in documents:
-        unknown = set(doc) - {"timing", "global", "app", "device"}
+        unknown = set(doc) - {"timing", "mouse", "global", "app", "device"}
         if unknown:
             errors.append(f"{label}: unknown section(s) {', '.join(sorted(unknown))}")
-        timing_table = doc.get("timing", {})
-        if not isinstance(timing_table, dict):
-            errors.append(f"{label}: [timing]: must be a table")
-            timing_table = {}
-        for key, value in timing_table.items():
-            lo, hi = _TIMING_LIMITS.get(key, (None, None))
-            if lo is None:
-                errors.append(f"{label}: [timing].{key}: unknown setting")
-            elif isinstance(value, bool) or not isinstance(value, (int, float)) or not lo <= value <= hi:
-                errors.append(f"{label}: [timing].{key}: must be a number from {lo} to {hi}")
-            else:
-                timing[key] = value
+        for section, limits in _NUMBERS.items():
+            table = doc.get(section, {})
+            if not isinstance(table, dict):
+                errors.append(f"{label}: [{section}]: must be a table")
+                continue
+            for key, value in table.items():
+                lo, hi = limits.get(key, (None, None))
+                if lo is None:
+                    errors.append(f"{label}: [{section}].{key}: unknown setting")
+                elif isinstance(value, bool) or not isinstance(value, (int, float)) or not lo <= value <= hi:
+                    errors.append(f"{label}: [{section}].{key}: must be a number from {lo} to {hi}")
+                else:
+                    numbers[section][key] = value
         errs: list[str] = []
         global_.update(_parse_table(doc.get("global", {}), "[global]", errs))
         app_tables = doc.get("app", {})
@@ -266,7 +278,7 @@ def parse(documents: list[tuple[str, dict]]) -> Config:
                           "in [global] and cannot be rebound per app")
     if errors:
         raise ConfigError(errors)
-    return Config(Timing(**timing), global_, apps, tuple(devices))
+    return Config(Timing(**numbers["timing"]), Mouse(**numbers["mouse"]), global_, apps, tuple(devices))
 
 
 def default_paths() -> list[Path]:

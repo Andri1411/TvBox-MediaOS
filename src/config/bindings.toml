@@ -30,6 +30,12 @@ long_press_ms = 500
 repeat_delay_ms = 350
 repeat_hz = 12
 
+# Mouse mode: left stick = pointer, right stick = scroll, A = click,
+# X = right click.
+[mouse]
+speed = 900            # pointer speed in px/s at full tilt (doubles while held)
+scroll_speed = 18      # wheel notches per second at full tilt
+
 [global]
 up    = { press = "key:Up", repeat = true }
 down  = { press = "key:Down", repeat = true }

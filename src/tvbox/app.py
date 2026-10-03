@@ -15,6 +15,7 @@ from .util import runtime_dir
 BROWSER = os.environ.get("TVBOX_BROWSER", "chromium")
 # Fetched from Google on the box by tvbox-widevine-update (not redistributable).
 WIDEVINE_DIR = Path(f"/var/lib/{NAME}/WidevineCdm")
+NAV_EXTENSION = Path(os.environ.get("TVBOX_DATA_DIR", f"/usr/share/{NAME}")) / "extensions" / "tvnav"
 CACHE_BYTES = 256 * 1024 * 1024
 # Hardware video decoding through VA-API (names change between Chromium
 # versions; unknown ones are ignored).
@@ -60,6 +61,8 @@ def browser_argv(service: Service, cache_root: Path) -> list[str]:
     ]
     if service.user_agent:
         argv.append(f"--user-agent={service.user_agent}")
+    if service.nav:
+        argv.append(f"--load-extension={NAV_EXTENSION}")
     return argv + list(service.flags) + [service.url]
 
 

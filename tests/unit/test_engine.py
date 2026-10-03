@@ -122,9 +122,12 @@ def test_ui_mode_types_nothing_into_the_app(rig):
     engine, clock, out = rig
     engine.set_app("youtube")
     engine.set_mode("ui")
-    for button in ("start", "lb", "x", "rs_up", "play_pause"):
+    for button in ("lb", "rs_up", "play_pause", "rb"):
         tap(engine, button)
     assert out.take() == []
+    tap(engine, "x")                    # the on-screen keyboard uses these two
+    tap(engine, "start")
+    assert out.take() == ["nav:x", "nav:start"]
     tap(engine, "rt")
     tap(engine, "mute")
     tap(engine, "y")
@@ -158,6 +161,8 @@ def test_mouse_mode(rig):
     clock.advance(1)
     engine.button("ok", False)
     assert out.take() == ["click:down", "click:up"]
+    tap(engine, "x")
+    assert out.take() == ["click:down:right", "click:up:right"]
     tap(engine, "ls_up")                # stick moves the pointer instead
     tap(engine, "rs_down")
     assert out.take() == []

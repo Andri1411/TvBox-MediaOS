@@ -15,6 +15,10 @@ from .bindings import Action, Binding, Config
 MODES = ("app", "ui", "mouse")
 NAV = ("up", "down", "left", "right", "ok", "back")
 _DIRECTIONS = NAV[:4]
+# Also handed to the overlay while it is open (on-screen keyboard: X =
+# backspace, Start = done); the menu ignores them.
+UI_EXTRA = ("x", "start")
+MOUSE_BUTTONS = {"ok": "left", "x": "right"}
 # With the overlay open nothing may reach the app underneath: only these
 # action types still fire from non-navigation buttons.
 _UI_MODE_KINDS = ("ui", "volume", "audio", "mouse")
@@ -27,14 +31,14 @@ class Scheduler(Protocol):
 class Output(Protocol):
     def action(self, action: Action, button: str) -> None: ...
     def nav(self, button: str) -> None: ...            # ui mode navigation
-    def click(self, down: bool) -> None: ...           # mouse mode, left button
+    def click(self, down: bool, button: str) -> None: ...    # mouse mode: "left" | "right"
 
 
 @dataclass
 class _Held:
     binding: Binding | None = None
     nav: str | None = None        # ui mode: send this navigation button instead
-    click: bool = False           # mouse mode: this press holds the mouse button
+    click: str | None = None      # mouse mode: this press holds that mouse button
     timer: Any = None
     done: bool = False            # long action fired, or press cancelled
 
@@ -73,8 +77,8 @@ class Engine:
                 held.timer.cancel()
                 held.timer = None
             if held.click:
-                self.output.click(False)
-                held.click = False
+                self.output.click(False, held.click)
+                held.click = None
             held.done = True
 
     # -- input --------------------------------------------------------------
@@ -93,11 +97,11 @@ class Engine:
         if self.mode == "mouse":
             if stick:
                 return _Held()               # sticks move the pointer / scroll
-            if name == "ok":
-                return _Held(click=True)
+            if name in MOUSE_BUTTONS:
+                return _Held(click=MOUSE_BUTTONS[name])
         if self.mode == "ui":
             target = name[3:] if name.startswith("ls_") else name
-            if target in NAV:
+            if target in NAV or target in UI_EXTRA:
                 return _Held(nav=target)
             binding = self.config.lookup(name)
             if binding:
@@ -111,7 +115,7 @@ class Engine:
     def _press(self, name: str, held: _Held) -> None:
         timing = self.config.timing
         if held.click:
-            self.output.click(True)
+            self.output.click(True, held.click)
         elif held.nav:
             self.output.nav(held.nav)
             if held.nav in _DIRECTIONS:
@@ -132,7 +136,7 @@ class Engine:
         if held.timer:
             held.timer.cancel()
         if held.click:
-            self.output.click(False)
+            self.output.click(False, held.click)
         elif not held.done and held.binding and held.binding.long and held.binding.press:
             # A button with a long action fires its short press on release.
             self.output.action(held.binding.press, name)

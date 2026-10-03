@@ -229,6 +229,8 @@ def main():
     check("triggers = volume, Y = keyboard", got == ["volume:+2", "volume:-2", "ui:keyboard"], str(got))
     got = drain(out, 0.1)
     check("hub actions type nothing", got == [], str(got))
+    close_menu(daemon)          # Y opened the on-screen keyboard (keyboard_test.py covers it)
+    neutral_workspace()
 
     # --- config override, reload, validation ---
     USER_CONF.parent.mkdir(parents=True, exist_ok=True)
@@ -282,7 +284,7 @@ def main():
     navs = [m["button"] for m in daemon.read() if m.get("event") == "nav"]
     got = drain(out, 0.1)
     check("ui mode: navigation goes to the overlay, nothing is typed",
-          navs == ["down", "ok"] and got == [], f"{navs} {got}")
+          navs == ["down", "ok", "start"] and got == [], f"{navs} {got}")
     daemon.call(cmd="mode", mode="app")
 
     ctl = tv("tvbox-ctl", "action", "mouse:toggle")

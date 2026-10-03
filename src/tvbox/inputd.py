@@ -47,12 +47,11 @@ from .util import (IN_ATTRIB, IN_CLOSE_WRITE, IN_CREATE, IN_DELETE, IN_MOVED_FRO
 
 log = setup_logging("inputd")
 
-# Mouse mode (left stick = pointer, right stick = scroll).
+# Mouse mode (left stick = pointer, right stick = scroll, A = left click,
+# X = right click; speeds come from [mouse] in bindings.toml).
 MOUSE_HZ = 60
 MOUSE_DEADZONE = 0.15
-MOUSE_SPEED = 900          # px/s at full deflection, doubling while held (ramp)
-MOUSE_RAMP_S = 0.6
-SCROLL_SPEED = 18          # wheel notches/s at full deflection
+MOUSE_RAMP_S = 0.6         # pointer speed doubles over this long while the stick is held
 CURSOR_SHOWN, CURSOR_HIDDEN = "seat * hide_cursor 0", "seat * hide_cursor 100"
 
 
@@ -75,8 +74,8 @@ class VirtualInput:
             self.ui.write(e.EV_KEY, code, 0)
         self.ui.syn()
 
-    def click(self, down: bool) -> None:
-        self.ui.write(e.EV_KEY, e.BTN_LEFT, int(down))
+    def click(self, down: bool, button: str = "left") -> None:
+        self.ui.write(e.EV_KEY, e.BTN_RIGHT if button == "right" else e.BTN_LEFT, int(down))
         self.ui.syn()
 
     def move(self, dx: int, dy: int) -> None:
@@ -322,8 +321,8 @@ class InputDaemon:
     def nav(self, button: str) -> None:
         self.broadcast({"event": "nav", "button": button})
 
-    def click(self, down: bool) -> None:
-        self.output.click(down)
+    def click(self, down: bool, button: str) -> None:
+        self.output.click(down, button)
 
     # -- modes --------------------------------------------------------------
     def set_mode(self, mode: str) -> None:
@@ -348,11 +347,12 @@ class InputDaemon:
             lx, ly, rx, ry = (stick_curve(max((p[a] for p in pads), key=abs, default=0.0))
                               for a in ("lx", "ly", "rx", "ry"))
             held = min(MOUSE_RAMP_S, held + dt) if (lx or ly) else 0.0
-            speed = MOUSE_SPEED * (1 + held / MOUSE_RAMP_S) * dt
+            mouse = self.engine.config.mouse
+            speed = mouse.speed * (1 + held / MOUSE_RAMP_S) * dt
             rem[0] += lx * speed
             rem[1] += ly * speed
-            rem[2] += -ry * SCROLL_SPEED * dt        # stick up = scroll up
-            rem[3] += rx * SCROLL_SPEED * dt
+            rem[2] += -ry * mouse.scroll_speed * dt        # stick up = scroll up
+            rem[3] += rx * mouse.scroll_speed * dt
             steps = [int(v) for v in rem]
             rem = [v - s for v, s in zip(rem, steps)]
             if steps[0] or steps[1]:

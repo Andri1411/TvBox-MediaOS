@@ -429,7 +429,11 @@ class Hub:
         role = request.query.get("role", "")
         if request[ACCESS] != "tv" and role != "phone":
             raise web.HTTPForbidden(text="only the TV's own pages may take that role\n")
-        ws = web.WebSocketResponse(heartbeat=20)
+        # Pings find phones that vanished. Not for the TV's own pages: WebKit
+        # suspends the hidden overlay page, which then misses the pong and the
+        # connection was dropped about every 30 s (a menu opened in that gap
+        # closed again at once).
+        ws = web.WebSocketResponse(heartbeat=20 if role == "phone" else None)
         await ws.prepare(request)
         self._clients[ws] = role
         held: set[str] = set()              # phone buttons currently down

@@ -482,8 +482,7 @@ off the password manager, autofill, translate, notifications and metrics.
 ### One Chromium instance per service
 `tvbox-app@<id>.service` runs `tvbox-app <id>`, which builds the command line
 from `services.toml`: own `--user-data-dir` under
-`~/.local/share/tvbox/profiles/<id>` (logins persist), `--kiosk`, Wayland,
-`--class=tvbox-<id>`, disk cache on tmpfs (`$XDG_RUNTIME_DIR`, 256 MB cap),
+`~/.local/share/tvbox/profiles/<id>` (logins persist), an app window (`--app=<url>`, originally `--kiosk`, see Phase 5), Wayland, disk cache on tmpfs (`$XDG_RUNTIME_DIR`, 256 MB cap),
 `--password-store=basic` (there is no keyring daemon), DevTools on a random
 loopback port recorded in the profile. Separate instances cost memory (32 GB
 is plenty) and buy isolation: a crashed or wedged Netflix doesn't take
@@ -811,3 +810,30 @@ CPU temperature sensor on the real board (the VM has none).
 
 **Open question:** whether to add `tvbox.local` (Avahi/mDNS) so a phone
 survives the box changing its IP address.
+
+### Found while testing Phase 5 by hand in the VM
+- **Netflix and Disney+ showed a black bar on the left with the page cut off
+  on the right.** Reproduced on cold starts in a second VM (about 1 in 4
+  boots, any service). Chromium kept drawing with the offsets of its first,
+  smaller window although it reported itself fullscreen; leaving and
+  re-entering fullscreen fixed it, but doing that automatically a few
+  seconds after start did not catch every case. Browser services now run as
+  Chromium *app windows* (`--app=<url>`, no tabs or address bar; sway makes
+  them fullscreen) instead of `--kiosk`: 0 of 6 cold boots showed the bar.
+  App windows ignore `--class`; their Wayland app id is
+  `chrome-<host>__<path>-Default`, which nothing relies on (windows are
+  placed by their systemd unit).
+- **The cookie banners could not be controlled with the d-pad.** Both sites
+  use OneTrust, whose banner is itself focusable (`tabindex="0"`) and
+  focused on load. The focus ring sat on the banner box, and every button
+  was "inside the current element" and therefore skipped. Boxes that
+  contain other targets are no longer targets; when the site has focused
+  such a box, the next arrow press goes inside it; and in a dialog the
+  first press lands on its first button in reading order. Verified on both
+  sign-in pages: Netflix down, right, OK = "Reject"; Disney+ down, down, OK.
+- **YouTube offered at most 1080p.** In the VM, also on a 4K screen (scale
+  2), YouTube offers up to 1080p: Chromium reports decoding as supported and
+  smooth but not power-efficient (software decoding), and YouTube's TV app
+  appears to use that to cap the quality. With VA-API on the real box 4K
+  should appear. This is on the hardware checklist, not something the VM can
+  show.

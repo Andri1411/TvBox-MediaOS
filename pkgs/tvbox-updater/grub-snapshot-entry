@@ -1,0 +1,31 @@
+#!/bin/sh
+# /etc/grub.d/45_tvbox - the menu entry that boots a snapshot chosen at boot
+# time (see 09_tvbox): one fixed entry, so GRUB can select it unattended,
+# which it can't do with grub-btrfs's submenu.
+set -e
+root_uuid=$(grub-probe --target=fs_uuid /)
+kernel=""
+for f in /boot/vmlinuz-*; do [ -f "$f" ] && kernel=${f#/boot/} && break; done
+[ -n "$kernel" ] || exit 0
+initramfs=initramfs-${kernel#vmlinuz-}.img
+# shellcheck source=/dev/null
+. /etc/default/grub
+cat <<EOF
+menuentry 'tvbox: backup snapshot' --class tvbox --id tvbox-snapshot {
+	if [ -z "\$tvbox_snapshot" ]; then set tvbox_snapshot="\$tvbox_fallback"; fi
+	load_video
+	set gfxpayload=keep
+	insmod gzio
+	insmod part_gpt
+	insmod btrfs
+	search --no-floppy --fs-uuid --set=root $root_uuid
+	set tvbox_dir=/@snapshots/\$tvbox_snapshot/snapshot
+	echo "Starting backup snapshot \$tvbox_snapshot ..."
+	linux \$tvbox_dir/boot/$kernel root=UUID=$root_uuid rw rootflags=subvol=@snapshots/\$tvbox_snapshot/snapshot $GRUB_CMDLINE_LINUX $GRUB_CMDLINE_LINUX_DEFAULT
+	if [ -f \$tvbox_dir/boot/intel-ucode.img ]; then
+		initrd \$tvbox_dir/boot/intel-ucode.img \$tvbox_dir/boot/$initramfs
+	else
+		initrd \$tvbox_dir/boot/$initramfs
+	fi
+}
+EOF

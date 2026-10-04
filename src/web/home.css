@@ -35,3 +35,4 @@ header {
 #about { margin: 0 1rem; font-size: 1.35rem; display: grid; grid-template-columns: 10rem 1fr; row-gap: .7rem; }
 #about dt { color: var(--dim); }
 #about dd { margin: 0; }
+#note { margin: 1rem 1rem 0; font-size: 1.15rem; color: var(--dim); white-space: pre-wrap; overflow-wrap: anywhere; }

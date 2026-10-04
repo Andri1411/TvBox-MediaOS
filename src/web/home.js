@@ -29,7 +29,9 @@ const VIEWS = {
       { label: 'Pair a phone', value: `${(state.devices ?? []).length} paired`, ok: () => push('pair') },
       { label: 'Wi-Fi', value: 'later version', disabled: true },
       { label: 'Bluetooth', value: 'later version', disabled: true },
-      { label: 'Updates', value: 'later version', disabled: true },
+      { label: 'Updates', value: updateSummary(), ok: () => push('updates') },
+      { label: 'Snapshots', value: state.update?.booted_snapshot ? `running snapshot ${state.update.booted_snapshot}` : 'backups',
+        ok: () => { send('snapshots'); push('snapshots'); } },
       { label: 'Restart session', ok: () => push('confirm_session') },
       { label: 'Reboot', ok: () => push('confirm_reboot') },
       { label: 'About', value: `tvbox ${state.version ?? ''}`, ok: () => push('about') },
@@ -64,6 +66,60 @@ const VIEWS = {
     ],
     pair: true,
   }),
+  updates: () => {
+    const u = state.update ?? {};
+    const items = [];
+    if (u.status === 'available') {
+      items.push({ label: `Install ${u.updates.length} update${u.updates.length === 1 ? '' : 's'}`,
+        value: u.download_size ? `${(u.download_size / 1e6).toFixed(0)} MB` : '', ok: () => send('update_apply') });
+      for (const p of u.updates.slice(0, 7)) items.push({ label: p.name, value: `${p.old} → ${p.new}`, disabled: true });
+      if (u.updates.length > 7) items.push({ label: `and ${u.updates.length - 7} more`, disabled: true });
+    } else if (u.status === 'done' && u.reboot_for?.length) {
+      items.push({ label: 'Reboot now', value: 'needed for the update', ok: () => send('reboot') });
+    }
+    if (!['checking', 'applying'].includes(u.status)) items.push({ label: 'Check for updates', ok: () => send('update_check') });
+    items.push({ label: 'Back', ok: pop });
+    return { title: 'Updates', items, log: updateLog(u) };
+  },
+  snapshots: () => {
+    const u = state.update ?? {};
+    return {
+      title: 'Snapshots',
+      items: [{ label: 'Back', ok: pop }, ...(u.snapshots ?? []).filter((s) => s.type !== 'post').map((s) => ({
+        label: `${snapshotTime(s.date)}`,
+        value: s.number === u.booted_snapshot ? 'running now' : s.number === u.fallback ? 'before the last update'
+          : snapshotLabel(s),
+        ok: () => push('snapshot', s.number),
+      }))],
+      log: 'A snapshot is taken before every update. Starting one is safe: the next restart goes back to the normal system unless you keep it.',
+    };
+  },
+  snapshot: (number) => ({
+    title: `Snapshot ${number}`,
+    items: [
+      { label: 'Start it once', value: 'until the next restart', ok: () => push('confirm_snapshot', ['snapshot_boot_once', number]) },
+      { label: 'Roll back to it', value: 'replaces the current system', ok: () => push('confirm_snapshot', ['snapshot_rollback', number]) },
+      { label: 'Cancel', ok: pop },
+    ],
+  }),
+  confirm_snapshot: ([cmd, number]) => ({
+    title: cmd === 'snapshot_rollback' ? `Roll back to snapshot ${number} and restart?` : `Restart into snapshot ${number}?`,
+    items: [{ label: 'Cancel', ok: pop }, { label: cmd === 'snapshot_rollback' ? 'Roll back and restart' : 'Restart', ok: () => send(cmd, { number }) }],
+  }),
+  backup: () => {
+    const u = state.update ?? {};
+    const when = u.fallback === u.booted_snapshot && u.fallback_time
+      ? `before the update on ${new Date(u.fallback_time * 1000).toLocaleDateString()}` : `snapshot ${u.booted_snapshot}`;
+    return {
+      title: 'Started from a backup',
+      items: [
+        { label: 'Keep this backup', value: 'roll back for good', ok: () => push('confirm_snapshot', ['snapshot_rollback', u.booted_snapshot]) },
+        { label: 'Try the updated system again', value: 'restart', ok: () => send('reboot') },
+        { label: 'Decide later', ok: pop },
+      ],
+      log: `The box did not start properly after an update, so it started the backup made ${when}. Nothing is lost either way.`,
+    };
+  },
   about: () => ({ title: 'About', items: [],
     about: { Version: `tvbox ${state.version ?? ''}`, Name: state.hostname, Address: state.address || 'not connected',
              Kernel: state.kernel } }),
@@ -109,9 +165,36 @@ function renderPairing(show) {
   pairTimer = setInterval(tick, 1000);
 }
 
-function push(name) {
+function updateSummary() {
+  const u = state.update ?? {};
+  return { checking: 'checking…', applying: 'installing…', available: `${u.updates?.length} available`,
+           none: 'up to date', done: u.reboot_for?.length ? 'installed, reboot needed' : 'installed',
+           error: 'failed' }[u.status] ?? 'check now';
+}
+
+function updateLog(u) {
+  if (u.status === 'error') return `Error: ${u.error}`;
+  if (u.status === 'checking' || u.status === 'applying') return (u.log ?? []).slice(-6).join('\n') || 'Working…';
+  if (u.status === 'none') return 'Everything is up to date.';
+  if (u.status === 'available') {
+    return `Nothing changes until you choose Install. A snapshot is taken first.${u.reboot_for?.length ? ' A restart is needed afterwards.' : ''}`;
+  }
+  if (u.status === 'done') return u.reboot_for?.length ? `Installed. Restart to use the new ${u.reboot_for.slice(0, 3).join(', ')}.` : 'Installed.';
+  return 'Updates are never installed automatically.';
+}
+
+function snapshotTime(date) {
+  return date ? new Date(`${date.replace(' ', 'T')}Z`).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '?';
+}
+
+function snapshotLabel(s) {
+  const d = s.description ?? '';
+  return d.startsWith('pacman') ? 'before an update' : d.slice(0, 40);
+}
+
+function push(name, arg) {
   if (name === 'main') send('refresh');     // audio devices may have changed
-  views.push({ name, focus: VIEWS[name]().initial ?? 0 });
+  views.push({ name, arg, focus: VIEWS[name](arg).initial ?? 0 });
   render();
 }
 
@@ -126,11 +209,13 @@ function render() {
   $('settings-view').hidden = !settings;
   if (settings) {
     const top = views[views.length - 1];
-    const view = VIEWS[top.name]();
+    const view = VIEWS[top.name](top.arg);
     top.focus = Math.max(0, Math.min(top.focus, view.items.length - 1));
     $('title').textContent = view.title;
     renderItems($('items'), view.items, top.focus);
     renderPairing(Boolean(view.pair));
+    $('note').hidden = !view.log;
+    $('note').textContent = view.log ?? '';
     $('about').hidden = !view.about;
     $('about').innerHTML = Object.entries(view.about ?? {})
       .map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('');
@@ -153,7 +238,7 @@ function nav(button) {
   if (views.length) {
     const top = views[views.length - 1];
     if (button === 'back') { pop(); return; }
-    top.focus = listNav(VIEWS[top.name]().items, top.focus, button);
+    top.focus = listNav(VIEWS[top.name](top.arg).items, top.focus, button);
     if (views[views.length - 1] === top) render();
     return;
   }
@@ -170,9 +255,17 @@ function nav(button) {
   render();
 }
 
+let backupShown = false;
+
 function onMessage(msg) {
   if (msg.type === 'state') {
     state = msg;
+    // Started from a backup snapshot: say so and offer the choices, once.
+    if (state.update?.booted_snapshot && !backupShown) {
+      backupShown = true;
+      views = [];
+      push('backup');
+    }
     render();
   } else if (msg.type === 'open') {
     views = [];

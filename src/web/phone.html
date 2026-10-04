@@ -63,7 +63,18 @@
     <button id="restart-session">Restart session</button>
     <button id="reboot" class="danger">Reboot</button>
   </div>
-  <p class="dim">Updates arrive in a later version.</p>
+  <h2>Updates</h2>
+  <p id="update-status" class="dim"></p>
+  <ul id="update-list" class="list"></ul>
+  <div class="row">
+    <button id="update-check">Check</button>
+    <button id="update-apply" class="primary" hidden>Install</button>
+    <button id="update-reboot" class="primary" hidden>Reboot now</button>
+  </div>
+  <pre id="update-log"></pre>
+  <h2>Snapshots</h2>
+  <p class="dim">Taken before every update. "Start once" goes back to the normal system at the next restart.</p>
+  <ul id="snapshots" class="list"></ul>
 </section>
 
 <section id="tab-health" hidden>

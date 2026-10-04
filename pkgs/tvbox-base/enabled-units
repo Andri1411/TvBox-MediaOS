@@ -10,3 +10,5 @@ snapper-cleanup.timer
 fstrim.timer
 tvbox-widevine.service
 avahi-daemon.service
+tvbox-updater.socket
+tvbox-boot-ok.timer

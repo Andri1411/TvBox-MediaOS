@@ -1,0 +1,13 @@
+#!/bin/bash
+# Marks this boot as healthy for the GRUB boot fallback (see
+# /etc/grub.d/09_tvbox): the TV session is up and the hub answers.
+set -euo pipefail
+env=/efi/tvbox/grubenv
+[[ -f $env ]] || exit 0
+if pgrep -u tv -x sway >/dev/null && curl -sf -o /dev/null --max-time 5 http://127.0.0.1:8080/api/state; then
+    grub-editenv "$env" unset tvbox_tries
+    echo "boot confirmed healthy"
+else
+    echo "session not healthy yet; this boot counts as failed for the boot fallback" >&2
+    exit 1
+fi

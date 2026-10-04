@@ -1,0 +1,12 @@
+[Unit]
+Description=tvbox updates and snapshots (socket)
+
+[Socket]
+ListenStream=/run/tvbox/updater.sock
+SocketUser=root
+SocketGroup=tv
+SocketMode=0660
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

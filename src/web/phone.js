@@ -105,6 +105,39 @@ function renderSettings() {
       <span>${escapeHtml(d.name)} <span class="sub">· paired ${new Date(d.created * 1000).toLocaleDateString()}</span></span>
       <button data-revoke="${escapeHtml(d.id)}">Remove</button></li>`).join('');
 }
+function renderUpdates() {
+  const u = state.update ?? {};
+  const text = { checking: 'Checking…', applying: 'Installing…', none: 'Everything is up to date.',
+    available: `${u.updates?.length} updates${u.download_size ? `, ${(u.download_size / 1e6).toFixed(0)} MB` : ''}.${u.reboot_for?.length ? ' A restart is needed afterwards.' : ''}`,
+    done: u.reboot_for?.length ? 'Installed. Restart to finish.' : 'Installed.',
+    error: `Failed: ${u.error}` }[u.status] ?? 'Updates are never installed automatically.';
+  $('update-status').textContent = text;
+  $('update-list').innerHTML = u.status === 'available' ? u.updates.map((p) =>
+    `<li><span>${escapeHtml(p.name)}</span><span class="sub">${escapeHtml(p.old)} → ${escapeHtml(p.new)}</span></li>`).join('') : '';
+  $('update-check').disabled = ['checking', 'applying'].includes(u.status);
+  $('update-apply').hidden = u.status !== 'available';
+  $('update-reboot').hidden = !(u.status === 'done' && u.reboot_for?.length);
+  $('update-log').textContent = ['checking', 'applying'].includes(u.status) ? (u.log ?? []).join('\n') : '';
+  $('snapshots').innerHTML = (u.snapshots ?? []).filter((s) => s.type !== 'post').map((s) => `<li>
+      <span>${escapeHtml(new Date(`${s.date.replace(' ', 'T')}Z`).toLocaleString())}<br><span class="sub">${
+        s.number === u.booted_snapshot ? 'running now' : s.number === u.fallback ? 'before the last update'
+          : escapeHtml(s.description.startsWith('pacman') ? 'before an update' : s.description)}</span></span>
+      <span class="row" style="margin:0;flex:0 0 auto"><button data-once="${s.number}">Start once</button>
+      <button data-rollback="${s.number}" class="danger">Roll back</button></span></li>`).join('');
+}
+$('update-check').addEventListener('click', () => send('update_check'));
+$('update-apply').addEventListener('click', () => send('update_apply'));
+$('update-reboot').addEventListener('click', () => { if (confirm('Reboot the box now?')) send('reboot'); });
+$('snapshots').addEventListener('click', (event) => {
+  const once = event.target.dataset.once, back = event.target.dataset.rollback;
+  if (once && confirm(`Restart into snapshot ${once}? The next restart after that goes back to the normal system.`)) {
+    send('snapshot_boot_once', { number: Number(once) });
+  }
+  if (back && confirm(`Replace the system with snapshot ${back} and restart? The current system is kept until the next rollback.`)) {
+    send('snapshot_rollback', { number: Number(back) });
+  }
+});
+
 $('volume').addEventListener('change', () => send('volume_set', { percent: Number($('volume').value) }));
 $('outputs').addEventListener('click', (event) => {
   const li = event.target.closest('li[data-id]');
@@ -184,7 +217,7 @@ function showTab(name) {
   clearInterval(healthTimer);
   if (name === 'health') { loadHealth(); healthTimer = setInterval(loadHealth, 5000); }
   if (name === 'bindings') loadBindings();
-  if (name === 'settings') send('refresh');
+  if (name === 'settings') { send('refresh'); send('snapshots'); }
 }
 $('tabs').addEventListener('click', (event) => { if (event.target.dataset.tab) showTab(event.target.dataset.tab); });
 
@@ -195,6 +228,7 @@ function render() {
   $('link-state').classList.toggle('off', !state.type);
   renderApps();
   renderSettings();
+  renderUpdates();
 }
 
 connect('phone', (msg) => {

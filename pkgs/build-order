@@ -4,5 +4,6 @@ tvbox-keyring
 tvbox-session
 tvbox-core
 tvbox-browser
+tvbox-updater
 tvbox-base
 tvbox-installer

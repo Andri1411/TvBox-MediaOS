@@ -23,7 +23,9 @@ FWCFG=/sys/firmware/qemu_fw_cfg/by_name/opt/tvbox/autoinstall/raw
 
 AUTO=0
 DISK=""
-HOSTNAME_=$NAME
+# The box announces itself on the LAN as <hostname>.local (Avahi), so the
+# phone remote can be opened at http://tv.local:8080.
+HOSTNAME_=tv
 SSH_KEYS=""
 WIFI_SSID=""
 WIFI_PSK=""

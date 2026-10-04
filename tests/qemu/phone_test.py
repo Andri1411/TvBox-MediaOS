@@ -122,10 +122,15 @@ def main():
 
     # --- pairing ---
     reply = json.loads(vm("curl -s -X POST 127.0.0.1:8080/api/pair/start") or "{}")
-    url = reply.get("url", "")
-    check("the TV makes a pairing link with the box's LAN address",
-          url.startswith("http://10.0.2.15:8080/pair?t="), url)
-    token_path = url[url.index("/pair"):] if "/pair" in url else "/pair"
+    url, url_ip = reply.get("url", ""), reply.get("url_ip", "")
+    check("the pairing link uses the box's mDNS name", url.startswith("http://tv.local:8080/pair?t="), url)
+    check("with the LAN address as a fallback", url_ip.startswith("http://10.0.2.15:8080/pair?t=")
+          and url_ip.split("?")[1] == url.split("?")[1], url_ip)
+    resolved = vm("avahi-resolve -4 -n tv.local | awk '{print $2}'").strip()
+    check("tv.local resolves to the box on the LAN (mDNS)", resolved == "10.0.2.15", resolved)
+    # The host can't resolve the guest's mDNS name through QEMU's NAT; use the
+    # same one-time token through the forwarded port.
+    token_path = url_ip[url_ip.index("/pair"):] if "/pair" in url_ip else "/pair"
     qr = vm(f"curl -s '127.0.0.1:8080/api/pair/qr.svg?url={urllib.request.quote(url, safe='')}'")
     check("the TV can draw it as a QR code", qr.lstrip().startswith("<svg") and "<path" in qr, qr[:60])
     status, headers, _ = http(token_path)

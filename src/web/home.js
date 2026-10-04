@@ -99,6 +99,7 @@ function renderPairing(show) {
   if ($('pair-qr').getAttribute('src') !== qr) $('pair-qr').src = qr;
   $('pair-qr').hidden = false;
   $('pair-url').textContent = pairing.url;
+  $('pair-ip').textContent = pairing.url_ip !== pairing.url ? `If the phone can't open that: ${pairing.url_ip}` : '';
   const tick = () => {
     const left = Math.round(pairing.expires - Date.now() / 1000);
     if (left <= 0) { pairing = null; startPairing(); return; }       // a fresh code

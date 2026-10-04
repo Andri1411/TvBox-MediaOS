@@ -82,6 +82,17 @@ def lan_address() -> str:
     return ""
 
 
+async def mdns_name() -> str:
+    """The name Avahi announces for the box (normally <hostname>.local; Avahi
+    picks another if the name is taken on the LAN), or "" without Avahi."""
+    code, out = await audio.run("busctl", "--system", "--json=short", "call", "org.freedesktop.Avahi",
+                                "/", "org.freedesktop.Avahi.Server", "GetHostNameFqdn", timeout=3)
+    try:
+        return json.loads(out)["data"][0] if code == 0 else ""
+    except (ValueError, KeyError, IndexError, TypeError):
+        return ""
+
+
 class Hub:
     def __init__(self):
         self.overlay: str | None = None       # None | "menu" | "keyboard"
@@ -480,8 +491,12 @@ class Hub:
             return web.json_response({"ok": False, "error": "not connected to a network"}, status=409)
         token, expires = self.devices.start_pairing()
         port = request.app[PORT_KEY]
-        return web.json_response({"ok": True, "url": f"http://{address}:{port}/pair?t={token}",
-                                  "expires": expires})
+        by_ip = f"http://{address}:{port}/pair?t={token}"
+        # The phone keeps its pairing as long as it reaches the box under the
+        # same name: <name>.local survives the box getting a new IP address.
+        name = await mdns_name()
+        return web.json_response({"ok": True, "url": f"http://{name}:{port}/pair?t={token}" if name else by_ip,
+                                  "url_ip": by_ip, "expires": expires})
 
     async def api_pair_qr(self, request: web.Request) -> web.Response:
         tv_only(request)

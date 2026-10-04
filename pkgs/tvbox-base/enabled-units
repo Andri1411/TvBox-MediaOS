@@ -9,3 +9,4 @@ grub-btrfsd.service
 snapper-cleanup.timer
 fstrim.timer
 tvbox-widevine.service
+avahi-daemon.service

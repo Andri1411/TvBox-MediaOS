@@ -53,7 +53,7 @@ if [[ ${SKIP_INSTALL:-0} != 1 ]]; then
     ssh-keygen -q -t ed25519 -N '' -C tvbox-test -f "$state/id_ed25519"
     cat > "$state/autoinstall" <<END
 disk=/dev/nvme0n1
-hostname=tvbox
+hostname=tv
 timezone=UTC
 ssh_key=$(cat "$state/id_ed25519.pub")
 mirror=http://10.0.2.2:$mirror_port/\$repo/os/\$arch
@@ -140,6 +140,8 @@ check "Widevine fetch set up" \
 check "navigation extension and typing tool installed" \
     'test -f /usr/share/tvbox/extensions/tvnav/manifest.json && command -v wtype >/dev/null'
 
+check "box announces itself as tv.local (mDNS)" \
+    'systemctl is-active -q avahi-daemon && avahi-resolve -4 -n tv.local | grep -q "10.0.2.15"'
 # Phase 5: the phone remote is reachable from the LAN but only after pairing
 check "hub answers the LAN, refuses unpaired clients" \
     'code=$(curl -s -o /dev/null -w "%{http_code}" "http://$(ip -4 -o addr show scope global | awk "{print \$4}" | cut -d/ -f1 | head -1):8080/api/state"); [ "$code" = 401 ]'

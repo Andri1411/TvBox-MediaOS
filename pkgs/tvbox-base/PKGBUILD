@@ -18,6 +18,8 @@ depends=(
     btrfs-progs dosfstools snapper snap-pac
     # system services
     networkmanager bluez bluez-utils openssh polkit zram-generator
+    # mDNS: the box is reachable as <hostname>.local (phone remote)
+    avahi
     # controllers over Bluetooth (from pkgs/aur.list)
     xpadneo-dkms
     # audio

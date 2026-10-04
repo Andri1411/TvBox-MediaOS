@@ -147,8 +147,14 @@ class Hub:
     def spawn(self, coro) -> asyncio.Task:
         task = asyncio.get_running_loop().create_task(coro)
         self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
+        task.add_done_callback(self._task_done)
         return task
+
+    def _task_done(self, task: asyncio.Task) -> None:
+        self._tasks.discard(task)
+        if not task.cancelled() and task.exception():
+            log.error("background task %s failed", task.get_coro().__qualname__,
+                      exc_info=task.exception())
 
     # -- link to inputd -----------------------------------------------------
     def input_send(self, **cmd) -> None:

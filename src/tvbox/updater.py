@@ -279,7 +279,10 @@ async def serve() -> None:
         path.unlink(missing_ok=True)
         sock = socket.socket(socket.AF_UNIX)
         sock.bind(str(path))
-    server = await asyncio.start_unix_server(updater.handle, sock=sock)
+    # cleanup_socket=False: the socket file belongs to systemd (socket
+    # activation); asyncio would delete it on exit and nobody could reach
+    # the updater again until the next boot.
+    server = await asyncio.start_unix_server(updater.handle, sock=sock, cleanup_socket=False)
     sd_notify("READY=1")
     async with server:
         # Exit when idle; systemd starts us again on the next connection.

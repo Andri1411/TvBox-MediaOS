@@ -175,7 +175,14 @@ class AppManager:
 
     async def devtools(self, service: Service, method: str, params: dict) -> list[dict] | None:
         """Send one DevTools command to every page of a browser service; the
-        results, or None if the browser could not be reached."""
+        results, or None if the browser could not be reached in time."""
+        try:
+            return await asyncio.wait_for(self._devtools(service, method, params), 6)
+        except asyncio.TimeoutError:
+            log.debug("devtools %s %s: no answer", service.id, method)
+            return None
+
+    async def _devtools(self, service: Service, method: str, params: dict) -> list[dict] | None:
         port = devtools_port(service.id) if service.kind == "browser" else None
         if not port:
             return None
@@ -250,6 +257,14 @@ class AppManager:
     async def ping(self, service: Service) -> bool:
         """Does the service's page still run JavaScript? A frozen renderer
         doesn't answer; a crashed tab answers with an error."""
+        # (aiohttp's session timeout does not cover receiving on a WebSocket:
+        # without this, a ping to a frozen page would wait forever.)
+        try:
+            return await asyncio.wait_for(self._ping(service), PING_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            return False
+
+    async def _ping(self, service: Service) -> bool:
         port = devtools_port(service.id)
         if not port:
             return False

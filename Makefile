@@ -6,7 +6,7 @@ export QEMU_MEM QEMU_CPUS QEMU_DISK_SIZE QEMU_HUB_PORT QEMU_SSH_PORT
 RUN := scripts/run-in-builder.sh
 
 .PHONY: help builder packages repo iso pages serve-repo qemu-iso qemu-disk qemu-smoke qemu-install \
-        qemu-session qemu-input qemu-reset lint test clean distclean
+        qemu-session qemu-input qemu-update qemu-reset lint test clean distclean
 
 help: ## Show this help
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | \
@@ -46,6 +46,9 @@ qemu-session: ## Input, system menu and launcher tests in the installed VM, fake
 	tests/qemu/session.sh
 
 qemu-input: qemu-session
+
+qemu-update: ## Update, boot fallback and rollback test in the VM (first: make repo VERSION=<higher>)
+	tests/qemu/update.sh
 
 qemu-reset: ## Delete the QEMU test disk and UEFI variables
 	rm -rf $(BUILD_DIR)/qemu

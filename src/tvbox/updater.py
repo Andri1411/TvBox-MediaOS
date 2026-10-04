@@ -162,8 +162,16 @@ class Updater:
         return await proc.wait(), lines
 
     async def apply(self, emit) -> dict:
-        if Path("/var/lib/pacman/db.lck").exists():
-            raise Failed("another package operation is running")
+        if booted_snapshot() is not None:
+            raise Failed("the box is running a backup snapshot: keep it (roll back) or restart first")
+        lock = Path("/var/lib/pacman/db.lck")
+        if lock.exists():
+            if (await run("pgrep", "-x", "pacman"))[0] == 0:
+                raise Failed("another package operation is running")
+            # snap-pac snapshots are taken while pacman holds its lock, so a
+            # system rolled back to one starts with a stale lock.
+            log.warning("removing stale pacman lock")
+            lock.unlink()
         before = max((s["number"] for s in await snapper_list()), default=0)
         changed: list[str] = []
         # The keyring first, so packages signed with new keys can be checked.
@@ -222,6 +230,9 @@ class Updater:
             for previous in sorted(top.glob("@rollback-*")):       # keep only the newest old system
                 # -R: systemd creates subvolumes inside / (var/lib/portables, …)
                 await run("btrfs", "subvolume", "delete", "-R", str(previous))
+            # The snapshot was taken by snap-pac in the middle of a pacman
+            # transaction: drop the lock it caught, or pacman refuses to run.
+            (new / "var/lib/pacman/db.lck").unlink(missing_ok=True)
             os.rename(top / "@", old)
             os.rename(new, top / "@")
             emit(event="log", line=f"Snapshot {number} is now the system; the previous one is kept as {old.name}")

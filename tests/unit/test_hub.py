@@ -80,3 +80,18 @@ def test_requests_from_web_pages_are_refused(tmp_path, monkeypatch):
                     "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ=="}) as r:
                 assert r.status == 403
     asyncio.run(scenario())
+
+
+def test_nmcli_parsing():
+    from tvbox import network
+    assert network.split_terse(r"*:Café\: 5G:72:WPA2") == ["*", "Café: 5G", "72", "WPA2"]
+    assert network.split_terse(r"a\\b:c") == ["a\\b", "c"]
+    devices = "wlan0:wifi:connected:Home\nenp1s0:ethernet:unavailable:\nlo:loopback:connected (externally):lo\n"
+    assert network.parse_devices(devices) == {"wifi_device": "wlan0", "ssid": "Home", "ethernet": False}
+    scan = " :Home:40:WPA2\n*:Home:70:WPA2\n :Cafe:90:\n :Neighbour:55:WPA1 WPA2\n ::30:WPA2\n"
+    assert network.parse_scan(scan) == [
+        {"ssid": "Home", "signal": 70, "secure": True, "connected": True},
+        {"ssid": "Cafe", "signal": 90, "secure": False, "connected": False},
+        {"ssid": "Neighbour", "signal": 55, "secure": True, "connected": False},
+    ]
+    assert network.parse_known("Home:802-11-wireless\nWired 1:802-3-ethernet\n") == ["Home"]

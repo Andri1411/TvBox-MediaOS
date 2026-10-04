@@ -27,8 +27,8 @@ const VIEWS = {
       volumeItem(),
       { label: 'Display scale', value: state.display_scale ?? 'auto', ok: () => push('scale') },
       { label: 'Pair a phone', value: `${(state.devices ?? []).length} paired`, ok: () => push('pair') },
-      { label: 'Wi-Fi', value: 'later version', disabled: true },
-      { label: 'Bluetooth', value: 'later version', disabled: true },
+      { label: 'Wi-Fi', value: wifiSummary(), ok: () => { send('wifi_scan'); push('wifi'); } },
+      { label: 'Bluetooth', value: btSummary(), ok: () => { send('refresh'); push('bluetooth'); } },
       { label: 'Updates', value: updateSummary(), ok: () => push('updates') },
       { label: 'Snapshots', value: state.update?.booted_snapshot ? `running snapshot ${state.update.booted_snapshot}` : 'backups',
         ok: () => { send('snapshots'); push('snapshots'); } },
@@ -66,6 +66,66 @@ const VIEWS = {
     ],
     pair: true,
   }),
+  wifi: () => {
+    const n = state.network ?? {};
+    if (!n.wifi_device) {
+      return { title: 'Wi-Fi', items: [{ label: 'Back', ok: pop }],
+        log: n.ethernet ? 'This box has no Wi-Fi; it is connected by cable.' : 'No Wi-Fi hardware found.' };
+    }
+    const items = [{ label: n.scanning ? 'Searching…' : 'Search again', disabled: n.scanning, ok: () => send('wifi_scan') }];
+    for (const net of n.networks ?? []) {
+      const saved = (n.known ?? []).includes(net.ssid);
+      items.push({
+        label: net.ssid,
+        value: net.connected ? 'connected' : n.connecting === net.ssid ? 'connecting…'
+          : `${saved ? 'saved · ' : ''}${net.secure ? '🔒 ' : ''}${net.signal}%`,
+        ok: () => {
+          if (net.connected || saved) push('wifi_network', net.ssid);
+          else if (net.secure) push('wifi_password', net.ssid);
+          else send('wifi_connect', { ssid: net.ssid });
+        },
+      });
+    }
+    return { title: 'Wi-Fi', items,
+      log: n.message || (n.ethernet ? 'Connected by cable; Wi-Fi is used when the cable is unplugged.' : '') };
+  },
+  wifi_network: (ssid) => {
+    const n = state.network ?? {};
+    const connected = n.ssid === ssid;
+    return { title: ssid, items: [
+      ...(connected ? [] : [{ label: 'Connect', ok: () => { send('wifi_connect', { ssid }); pop(); } }]),
+      { label: 'Forget this network', ok: () => { send('wifi_forget', { ssid }); pop(); } },
+      { label: 'Back', ok: pop },
+    ], log: connected ? `Connected. Address: ${state.address || '…'}` : 'Saved network.' };
+  },
+  wifi_password: (ssid) => ({
+    title: `Password for ${ssid}`, items: [], input: ssid,
+    log: 'Type with the on-screen keyboard (Y opens it). Start or Enter connects, B goes back.',
+  }),
+  bluetooth: () => {
+    const b = state.bluetooth ?? {};
+    if (!b.available) return { title: 'Bluetooth', items: [{ label: 'Back', ok: pop }], log: 'No Bluetooth adapter found.' };
+    const items = [{ label: b.scanning ? 'Searching…' : 'Search for devices', disabled: b.scanning, ok: () => send('bt_scan') }];
+    for (const d of b.devices ?? []) {
+      items.push({ label: d.name, value: b.busy === d.path ? 'working…'
+        : `${d.kind}${d.connected ? ' · connected' : d.paired ? ' · paired' : ''}`,
+        ok: () => push('bt_device', d.path) });
+    }
+    return { title: 'Bluetooth', items, log: b.message ||
+      'To pair a controller or headphones, put them in pairing mode, choose Search, then the device.' };
+  },
+  bt_device: (path) => {
+    const d = (state.bluetooth?.devices ?? []).find((x) => x.path === path);
+    if (!d) return { title: 'Bluetooth', items: [{ label: 'Back', ok: pop }], log: 'The device is gone.' };
+    const act = (cmd) => () => { send(cmd, { path }); pop(); };
+    return { title: d.name, items: [
+      ...(!d.paired ? [{ label: 'Pair and connect', ok: act('bt_pair') }]
+        : d.connected ? [{ label: 'Disconnect', ok: act('bt_disconnect') }] : [{ label: 'Connect', ok: act('bt_connect') }]),
+      ...(d.paired ? [{ label: 'Forget this device', ok: act('bt_remove') }] : []),
+      { label: 'Back', ok: pop },
+    ], log: d.kind === 'headphones' || d.kind === 'speaker'
+      ? 'Once connected, choose it under Audio output.' : '' };
+  },
   updates: () => {
     const u = state.update ?? {};
     const items = [];
@@ -165,6 +225,20 @@ function renderPairing(show) {
   pairTimer = setInterval(tick, 1000);
 }
 
+function btSummary() {
+  const b = state.bluetooth ?? {};
+  if (!b.available) return 'no adapter';
+  const connected = (b.devices ?? []).filter((d) => d.connected);
+  return connected.length ? connected.map((d) => d.name).join(', ') : 'nothing connected';
+}
+
+function wifiSummary() {
+  const n = state.network ?? {};
+  if (n.ssid) return n.ssid;
+  if (n.ethernet) return 'cable';
+  return n.wifi_device ? 'not connected' : 'no Wi-Fi';
+}
+
 function updateSummary() {
   const u = state.update ?? {};
   return { checking: 'checking…', applying: 'installing…', available: `${u.updates?.length} available`,
@@ -214,6 +288,19 @@ function render() {
     $('title').textContent = view.title;
     renderItems($('items'), view.items, top.focus);
     renderPairing(Boolean(view.pair));
+    const input = $('text-input');
+    if (view.input) {
+      if (input.hidden) {
+        input.hidden = false;
+        input.value = '';
+        input.focus();
+        send('keyboard');                   // the on-screen keyboard types into it
+      }
+    } else if (!input.hidden) {
+      input.hidden = true;
+      input.blur();
+      if (state.overlay === 'keyboard') send('close');
+    }
     $('note').hidden = !view.log;
     $('note').textContent = view.log ?? '';
     $('about').hidden = !view.about;
@@ -278,6 +365,20 @@ function tick() {
 }
 
 document.addEventListener('keydown', (event) => {
+  // A text field gets the keys itself; only Enter (submit) and Escape (back).
+  if (document.activeElement === $('text-input')) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const top = views[views.length - 1];
+      send('wifi_connect', { ssid: top.arg, password: $('text-input').value });
+      send('close');
+      pop();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      pop();
+    }
+    return;
+  }
   const button = KEYS[event.key];
   if (button) { event.preventDefault(); nav(button); }
 });

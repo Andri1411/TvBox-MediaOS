@@ -125,6 +125,54 @@ function renderUpdates() {
       <span class="row" style="margin:0;flex:0 0 auto"><button data-once="${s.number}">Start once</button>
       <button data-rollback="${s.number}" class="danger">Roll back</button></span></li>`).join('');
 }
+function renderWifi() {
+  const n = state.network ?? {};
+  $('wifi-status').textContent = !n.wifi_device ? (n.ethernet ? 'Connected by cable (no Wi-Fi hardware).' : 'No Wi-Fi hardware.')
+    : n.connecting ? `Connecting to ${n.connecting}…` : n.message || (n.ssid ? `Connected to ${n.ssid}.` : n.ethernet ? 'Connected by cable.' : 'Not connected.');
+  $('wifi-scan').disabled = !n.wifi_device || n.scanning;
+  $('wifi-scan').textContent = n.scanning ? 'Searching…' : 'Search';
+  $('wifi-list').innerHTML = (n.networks ?? []).map((net) => {
+    const saved = (n.known ?? []).includes(net.ssid);
+    return `<li class="tap" data-ssid="${escapeHtml(net.ssid)}" data-secure="${net.secure}" data-saved="${saved}">
+      <span>${escapeHtml(net.ssid)} <span class="sub">${net.connected ? '· connected' : saved ? '· saved' : ''}</span></span>
+      <span class="sub">${net.secure ? '🔒 ' : ''}${net.signal}%</span></li>`;
+  }).join('');
+}
+$('wifi-scan').addEventListener('click', () => send('wifi_scan'));
+
+function renderBluetooth() {
+  const b = state.bluetooth ?? {};
+  $('bt-status').textContent = !b.available ? 'No Bluetooth adapter.' : b.message
+    || 'Put a controller or headphones in pairing mode, then Search.';
+  $('bt-scan').disabled = !b.available || b.scanning;
+  $('bt-scan').textContent = b.scanning ? 'Searching…' : 'Search';
+  $('bt-list').innerHTML = (b.devices ?? []).map((d) => {
+    const actions = !d.paired ? [['bt_pair', 'Pair']] : [[d.connected ? 'bt_disconnect' : 'bt_connect', d.connected ? 'Disconnect' : 'Connect'], ['bt_remove', 'Forget']];
+    return `<li><span>${escapeHtml(d.name)} <span class="sub">· ${escapeHtml(d.kind)}${d.connected ? ' · connected' : ''}</span></span>
+      <span class="row" style="margin:0;flex:0 0 auto">${b.busy === d.path ? '<span class="sub">working…</span>'
+        : actions.map(([cmd, text]) => `<button data-bt="${cmd}" data-path="${escapeHtml(d.path)}">${text}</button>`).join('')}</span></li>`;
+  }).join('');
+}
+$('bt-scan').addEventListener('click', () => send('bt_scan'));
+$('bt-list').addEventListener('click', (event) => {
+  const { bt, path } = event.target.dataset;
+  if (bt && (bt !== 'bt_remove' || confirm('Forget this device?'))) send(bt, { path });
+});
+$('wifi-list').addEventListener('click', (event) => {
+  const li = event.target.closest('li[data-ssid]');
+  if (!li) return;
+  const ssid = li.dataset.ssid;
+  if (li.dataset.saved === 'true') {
+    if (confirm(`Forget ${ssid}? (Cancel connects to it instead.)`)) send('wifi_forget', { ssid });
+    else send('wifi_connect', { ssid });
+  } else if (li.dataset.secure === 'true') {
+    const password = prompt(`Password for ${ssid}`);
+    if (password) send('wifi_connect', { ssid, password });
+  } else {
+    send('wifi_connect', { ssid });
+  }
+});
+
 $('update-check').addEventListener('click', () => send('update_check'));
 $('update-apply').addEventListener('click', () => send('update_apply'));
 $('update-reboot').addEventListener('click', () => { if (confirm('Reboot the box now?')) send('reboot'); });
@@ -229,6 +277,8 @@ function render() {
   renderApps();
   renderSettings();
   renderUpdates();
+  renderWifi();
+  renderBluetooth();
 }
 
 connect('phone', (msg) => {

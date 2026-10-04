@@ -9,12 +9,14 @@ import re
 SINK = "@DEFAULT_AUDIO_SINK@"
 
 
-async def run(*argv: str, timeout: float = 5, env: dict | None = None) -> tuple[int, str]:
-    """Run a command; (exit code, stdout). Missing binary or timeout = code -1.
-    `env` adds to the environment."""
+async def run(*argv: str, timeout: float = 5, env: dict | None = None,
+              stderr: bool = False) -> tuple[int, str]:
+    """Run a command; (exit code, stdout, plus stderr if asked). Missing
+    binary or timeout = code -1. `env` adds to the environment."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+            *argv, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT if stderr else asyncio.subprocess.DEVNULL,
             env={**os.environ, **env} if env else None)
     except OSError:
         return -1, ""

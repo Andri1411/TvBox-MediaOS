@@ -948,3 +948,47 @@ for the hardware test.
   same time produced nonsense; and `pkill -f <pattern>` repeatedly killed
   the shell that ran it (its own command line matched). Not product issues,
   noted so the next person doesn't repeat them.
+
+### Phase 6 status
+**Tested in QEMU, from a freshly built ISO in a separate VM:**
+- `make qemu-install`: 27 checks.
+- `make qemu-session`: 184 checks: input 39, system menu 29, home screen and
+  services 24, navigation/on-screen keyboard/mouse 26, watchdog and update
+  service 13, Wi-Fi with simulated radios 12, phone remote 34, keyboard and
+  screen 7.
+- `make qemu-update` (after `make repo VERSION=0.0.9`): 14 checks: an update
+  found, summarised and installed through the hub; the pre-update snapshot
+  recorded as fallback; the updated system boots; after two boots that never
+  became healthy GRUB starts the fallback by itself; the TV knows it runs
+  from the backup; "keep this backup" rolls back for good, to a writable
+  system on which pacman works, with the previous system kept.
+
+Checked by hand in the VM: the TV's Updates, Snapshots and "started from a
+backup" screens driven with the controller; "start once"; Wi-Fi from the TV
+(network list, password typed into the field with the on-screen keyboard,
+Start connects).
+
+**Not testable in QEMU, needs the real box:**
+- Bluetooth entirely: pairing the Xbox controller (xpadneo) and headphones,
+  audio switching to them, reconnecting after a restart.
+- Real Wi-Fi hardware and a real router.
+- GRUB's fallback on the real board's firmware (writing the environment block
+  on its EFI partition), and the timing of the boot health check on real
+  hardware.
+- An update from the real `[tvbox]` repository on GitHub Pages (signed), and
+  real Arch updates (kernel, mesa) with the restart prompt.
+- HDMI hotplug: switching the TV off and on, 4K output, audio over HDMI.
+- The watchdog on real services (Netflix/YouTube freezing in practice) and
+  how long a real Chromium takes to start (the 45 s grace period).
+- Everything listed under Phases 2–5 that needs the hardware: controller
+  feel, VA-API and 4K, Widevine playback, Netflix/Disney+ after sign-in, the
+  phone remote with a real phone.
+
+**Open questions:**
+- Should the box show a small notice on the home screen when updates are
+  available? Checking would mean contacting the mirrors on a timer, which the
+  brief rules out for installing but not for checking. Not done: nothing
+  happens unless the user asks.
+- Frozen native apps (Jellyfin) are not detected; Jellyfin's client has a
+  DevTools port too, so the same ping could be added once its behaviour on
+  the box is known.

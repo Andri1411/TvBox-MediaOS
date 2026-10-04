@@ -317,8 +317,9 @@ then offers a reboot when flagged.
 
 ### 3.9 Phone remote (Phase 5)
 
-Served by the hub on the LAN. Pairing: Settings → "Pair phone" shows a QR code
-with `http://<box-ip>:8080/pair?t=<one-time token, 5 min>`. Visiting it
+Served by the hub on the LAN. Pairing: Settings → "Pair a phone" shows a QR code
+with `http://tv.local:8080/pair?t=<one-time token, 5 min>` (mDNS name via Avahi;
+the IP link is shown too). Visiting it
 exchanges the token for a long-lived random device token (cookie); paired
 devices are listed and revocable in settings. Every LAN request without a
 valid token gets 401. Pages: remote (D-pad, back, home, play/pause, volume,

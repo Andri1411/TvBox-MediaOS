@@ -744,11 +744,15 @@ open from driving the box (cross-site requests carry no cookie; a forged
 `Origin` is refused). A DNS-rebinding page gets no cookie either, because the
 cookie belongs to the box's address.
 
-Limitation: the cookie is bound to the address in the link. If the router
-gives the box a different IP, phones must pair again. A DHCP reservation for
-the box avoids that. A `tvbox.local` name (mDNS) would survive address
-changes but needs Avahi on the box and isn't resolved by every phone; not
-done for now.
+The cookie is bound to the address in the link. So the box announces itself
+on the LAN with mDNS (Avahi) as `<hostname>.local`, the installer's default
+hostname is now `tv`, and the QR code links to `http://tv.local:8080/…`: a
+phone paired that way keeps working when the router gives the box another IP
+address. The hub asks Avahi for the name it actually announces (Avahi picks
+`tv-2.local` if another device already uses `tv.local`). The same one-time
+link with the IP address is shown underneath, for phones that can't resolve
+`.local` names (iOS can; Android since version 12); a phone paired by IP has
+to pair again if the IP changes, unless the router reserves it for the box.
 
 ### The phone sends controller buttons
 The d-pad, OK, Back, Home, volume and play/pause buttons send the same
@@ -808,8 +812,10 @@ iPhone and an Android phone, touch feel of the touchpad and the d-pad
 (hold-repeat, long press), typing on a phone keyboard with autocorrect, the
 CPU temperature sensor on the real board (the VM has none).
 
-**Open question:** whether to add `tvbox.local` (Avahi/mDNS) so a phone
-survives the box changing its IP address.
+**Decided after review:** the box is reachable as `tv.local` (above).
+Verified with a fresh ISO in a separate VM: `make qemu-install` 27 checks
+(new: the box announces `tv.local`), session checks all pass, the phone test
+checks both pairing links and that `tv.local` resolves to the box.
 
 ### Found while testing Phase 5 by hand in the VM
 - **Netflix and Disney+ showed a black bar on the left with the page cut off

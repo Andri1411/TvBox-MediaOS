@@ -32,8 +32,11 @@ log "home screen and services checks"
 log "navigation extension, on-screen keyboard and mouse checks"
 "$vm" ssh 'cd /root && python keyboard_test.py' || failed=1
 "$vm" put "$ROOT/tests/qemu/system_test.py" /root/system_test.py
+"$vm" put "$ROOT/tests/qemu/wifi_test.py" /root/wifi_test.py
 log "watchdog and update service checks"
 "$vm" ssh 'cd /root && python system_test.py' || failed=1
+log "Wi-Fi checks (simulated radios)"
+"$vm" ssh 'cd /root && python wifi_test.py' || failed=1
 # From the host, through QEMU's port forward: arrives like a phone on the LAN.
 log "phone remote checks"
 python3 "$ROOT/tests/qemu/phone_test.py" "${QEMU_HUB_PORT:-8080}" || failed=1

@@ -35,6 +35,9 @@ sleep 1
 kill -0 "$server" 2>/dev/null || die "could not serve the repo (port ${REPO_HTTP_PORT:-8800} in use?), see $BUILD_DIR/serve-repo.log"
 "$vm" ssh 'sed -i "/^\[tvbox\]/,/^\$/c\[tvbox]\nSigLevel = Optional TrustAll\nServer = http://10.0.2.2:'"${REPO_HTTP_PORT:-8800}"'/repo\n" /etc/pacman.conf'
 wait_hub
+# Start from a boot the health check has confirmed (as after two minutes of
+# normal use); otherwise the fallback comes one boot early.
+"$vm" ssh 'grub-editenv /efi/tvbox/grubenv unset tvbox_tries'
 old=$(version)
 
 log "update through the hub"

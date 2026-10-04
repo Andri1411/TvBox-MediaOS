@@ -1,6 +1,6 @@
 # tvbox architecture
 
-Status: **Phases 1 to 5 implemented.** Phase 0 review answers are in
+Status: **Phases 1 to 6 implemented.** Phase 0 review answers are in
 [§6](#6-review-outcome-phase-0); where the implementation departed from this
 plan, DECISIONS.md says why.
 

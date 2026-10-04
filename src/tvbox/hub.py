@@ -291,6 +291,31 @@ class Hub:
             self.network["networks"] = await network.scan()
             self.push_state()
 
+    async def display_watch(self) -> None:
+        """The TV was switched off and on (HDMI hotplug) or the output changed:
+        make sure it is on, re-apply the scale, and look for the TV's audio
+        output again. Turning an output on right after it reappears failed
+        once in testing ("Backend commit failed"), hence the retries."""
+        handled = 0.0
+        while True:
+            try:
+                async for _event in sway.events("output"):
+                    # What we do here makes sway report the output again: don't loop.
+                    if asyncio.get_running_loop().time() - handled < 5:
+                        continue
+                    await asyncio.sleep(1)
+                    for attempt in range(3):
+                        if await self.sway_command("output * power on"):
+                            break
+                        await asyncio.sleep(1 + attempt)
+                    await audio.run("tvbox-display", "apply", env={"SWAYSOCK": sway.socket_path() or ""})
+                    await self.refresh_audio()
+                    self.push_state()
+                    handled = asyncio.get_running_loop().time()
+            except (ConnectionError, OSError) as err:
+                log.debug("sway output events: %s", err)
+            await asyncio.sleep(2)
+
     async def refresh_network(self) -> None:
         self.network.update(await network.status())
         self.push_state()
@@ -685,6 +710,7 @@ class Hub:
         self.spawn(self.apps.watchdog())
         self.spawn(self.updates.refresh_snapshots())
         self.spawn(self.bluetooth.start())
+        self.spawn(self.display_watch())
         self.watch_services()
         sd_notify("READY=1")
         log.info("listening on port %d", port)

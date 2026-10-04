@@ -3,7 +3,8 @@
 settings against simulated radios. mac80211_hwsim makes three radios; two of
 them become access points with hostapd (one with WPA2, one open) and the
 third is the box's own Wi-Fi, driven through the hub as the TV and phone do.
-hostapd is installed for the test only.
+hostapd and dnsmasq (DHCP on the access points) are installed for the test
+only.
 """
 import subprocess
 import sys
@@ -36,9 +37,9 @@ def network():
 def main():
     st = wait_state(ui_ready, 30)
     check("shell and inputd are connected to the hub", ui_ready(st), str(st)[:200])
-    if sh("command -v hostapd").returncode:
+    if sh("command -v hostapd && command -v dnsmasq").returncode:
         sh("sed '/^\\[tvbox\\]/,/^$/d' /etc/pacman.conf > /root/pacman-notvbox.conf; "
-           "pacman --config /root/pacman-notvbox.conf -S --noconfirm --needed hostapd")
+           "pacman --config /root/pacman-notvbox.conf -S --noconfirm --needed hostapd dnsmasq")
     sh("modprobe -r mac80211_hwsim; modprobe mac80211_hwsim radios=3")
     time.sleep(3)
     ifaces = sorted(Path("/sys/class/net").glob("wlan*"))
@@ -48,7 +49,22 @@ def main():
     box, ap_secure, ap_open = (i.name for i in ifaces)
     for iface in (ap_secure, ap_open):
         sh(f"nmcli device set {iface} managed no")
-    aps = [access_point(ap_secure, SECURE, PASSWORD), access_point(ap_open, OPEN)]
+    time.sleep(2)                       # NetworkManager lets go of them
+    aps = []
+    for iface, ssid, password in ((ap_secure, SECURE, PASSWORD), (ap_open, OPEN, None)):
+        for _attempt in range(3):       # hostapd sometimes can't take a fresh radio at once
+            ap = access_point(iface, ssid, password)
+            time.sleep(2)
+            if ap.poll() is None:
+                break
+        aps.append(ap)
+    # Addresses for the box, like a router would hand out.
+    for n, iface in enumerate((ap_secure, ap_open), 1):
+        sh(f"ip addr add 10.99.{n}.1/24 dev {iface}")
+        aps.append(subprocess.Popen(["dnsmasq", "--keep-in-foreground", "--port=0", f"--interface={iface}",
+                                     "--bind-interfaces", f"--dhcp-range=10.99.{n}.10,10.99.{n}.50,1h",
+                                     f"--pid-file=/tmp/dnsmasq-{iface}.pid", "--leasefile-ro"],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
     try:
         time.sleep(3)
         net = network()
@@ -73,8 +89,7 @@ def main():
         check("connects with the right password", st["network"]["ssid"] == SECURE, str(st["network"]))
         check("and remembers it", SECURE in st["network"]["known"], str(st["network"]["known"]))
         address = sh(f"ip -4 -o addr show {box}").stdout
-        check("gets an address from the access point (or at least a link)",
-              "state UP" in sh(f"ip link show {box}").stdout or address, address)
+        check("gets an address from the access point", "10.99.1." in address, address)
 
         bad = api(cmd="wifi_connect", ssid=SECURE, password="short")
         check("passwords shorter than 8 characters are refused before trying", bad.get("ok") is False, str(bad))

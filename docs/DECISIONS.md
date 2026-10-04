@@ -843,3 +843,108 @@ checks both pairing links and that `tv.local` resolves to the box.
   appears to use that to cap the quality. With VA-API on the real box 4K
   should appear. This is on the hardware checklist, not something the VM can
   show.
+
+## Phase 6 — watchdog, updates, Bluetooth, Wi-Fi, polish, user guide
+
+### Watchdog
+- *Process exits* are systemd's job (`Restart=on-failure` on every app, and
+  `always` on our daemons); restarts appear on the health page from the
+  journal.
+- *Frozen or crashed browser tabs* are the hub's: every 10 s it evaluates
+  `1 + 1` in each running browser service's page through DevTools. Two
+  misses in a row (frozen renderer: no answer; crashed tab: error) restart
+  the app, with an on-screen notice and an entry on the health page. A
+  service gets 45 s after (re)starting before it is checked.
+- *Not covered:* frozen native apps (Jellyfin) and a "black screen" without
+  a frozen page; there is no reliable signal for either without hardware to
+  study. Restart app in the system menu covers them by hand.
+
+### Updates: a root helper with a narrow API
+`tvbox-updater` runs as root, socket-activated on `/run/tvbox/updater.sock`
+(group `tv`, mode 660), and exits when idle. It does exactly: check, apply,
+list snapshots, boot a snapshot once, roll back. The hub (user `tv`) talks
+to it; the browsers run as `tv` too, but can only reach the hub through the
+origin checks, never the socket. Updates never start on their own.
+- *check* uses `checkupdates` (a private copy of the package databases, so
+  checking never leaves a half-synced system) and `pacman -Sup` for the
+  download size, and flags a restart for the kernel, firmware, core
+  libraries, the graphics stack, the session and our own packages.
+- *apply* updates `archlinux-keyring` first (so packages signed with new keys
+  verify), then `pacman -Su`, streaming the output to the TV/phone. snap-pac
+  takes the snapshots; the first pre-snapshot of the run is recorded as the
+  boot fallback.
+
+### The boot fallback (Phase 0 decision, implemented)
+GRUB can't write to btrfs, so the boot state lives in an environment block
+on the EFI partition (`/efi/tvbox/grubenv`). `/etc/grub.d/09_tvbox` runs
+before the menu: it counts boots that haven't been confirmed
+(`tvbox_tries`), and on the third start in a row without a confirmation it
+selects the fallback snapshot. `tvbox-boot-ok.timer` confirms a boot two
+minutes after start if sway runs and the hub answers. `/etc/grub.d/45_tvbox`
+is one fixed menu entry that boots whichever snapshot the variables name
+(GRUB can't select grub-btrfs's submenu entries unattended, Phase 1). The
+same mechanism gives "start this snapshot once" (`tvbox_once`). When the box
+runs from a snapshot, the TV says so and offers *Keep this backup* (roll
+back for good), *Try the updated system again*, or *Decide later*.
+
+Rollback creates a writable copy of the snapshot as the new `@` and keeps the
+previous system as `@rollback-<time>` (deleted at the next rollback, with
+`-R` because systemd creates nested subvolumes). `/boot` is inside `@`, so
+the kernel always matches its modules.
+
+### Wi-Fi through nmcli; a narrow polkit rule
+Search, connect (password typed on the on-screen keyboard or the phone),
+forget. NetworkManager allows these to active login sessions only, and the
+hub is a user service outside the session: connecting failed with
+"Insufficient privileges" in the VM. `/usr/share/polkit-1/rules.d/50-tvbox.rules`
+grants the `tv` user the five NetworkManager actions Wi-Fi needs
+(network-control, settings.modify.system/own, enable-disable-wifi,
+wifi.scan) and nothing else. This means a compromised `tv` user could change
+the box's network connections; it still can't become root.
+
+### Bluetooth through BlueZ's D-Bus API
+dbus-fast, no `bluetoothctl` parsing. The hub registers as BlueZ's default
+pairing agent with "NoInputNoOutput" and accepts every request: controllers
+and headphones pair with "just works", and there is nobody at a keyboard to
+type a PIN. Pair = pair, trust, connect. BlueZ's D-Bus policy already lets
+the `tv` user do this; no extra rule. Headphones then appear under Audio
+output (PipeWire). **Not testable in the VM** (no Bluetooth adapter, and Arch
+doesn't package BlueZ's virtual controller tool); only the "no adapter" case
+ran.
+
+### TV switched off and on
+On every sway output event the hub turns the output on (retrying: it failed
+once in Phase 1 with "Backend commit failed"), re-applies the display scale
+and looks for the TV's audio output again. It ignores the events its own
+changes cause. The real behaviour of the TV and the Intel GPU on hotplug is
+for the hardware test.
+
+### Tried and didn't work (Phase 6)
+- **`snapper` while running from a snapshot:** "IO Error (... not a btrfs
+  subvolume)": `/` is an overlay then. The updater reads snapshots from
+  their `info.xml` instead.
+- **Pacman after a rollback:** snap-pac snapshots are taken while pacman holds
+  its lock, so every snapshot contains `db.lck`, and a rolled-back system
+  refused all package operations. Rollback now removes it from the new
+  system, and the updater clears a lock no pacman process holds. Found by
+  the end-to-end update test.
+- **The updater deleted its own socket:** asyncio's Unix server removes the
+  socket file on close, also one it got from systemd; after the first idle
+  exit the hub could no longer reach the updater until a reboot
+  (`cleanup_socket=False` now).
+- **The watchdog hung on a frozen page:** aiohttp's session timeout doesn't
+  cover WebSocket receives; the ping waited forever. All DevTools calls are
+  now time-limited. Also: background tasks in the hub that fail are now
+  logged (the hang looked like silence).
+- **`kill -SEGV` doesn't crash Chromium's renderers** (they handle the
+  signal); the test uses SIGKILL to simulate a crashed tab.
+- **`checkupdates` needs `fakeroot`**, which is in base-devel, not on the
+  box: now a dependency.
+- **Testing Wi-Fi in the VM:** mac80211_hwsim radios plus hostapd work, but
+  NetworkManager waits for DHCP until it gives up; the test runs dnsmasq on
+  the simulated access points. hostapd sometimes can't take a radio that
+  NetworkManager has just released; the test retries.
+- **Overlapping test runs:** two runs of the update test on one VM at the
+  same time produced nonsense; and `pkill -f <pattern>` repeatedly killed
+  the shell that ran it (its own command line matched). Not product issues,
+  noted so the next person doesn't repeat them.

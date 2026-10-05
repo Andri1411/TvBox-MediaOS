@@ -36,7 +36,7 @@ const VIEWS = {
         ok: () => { send('snapshots'); push('snapshots'); } },
       { label: 'Restart session', ok: () => push('confirm_session') },
       { label: 'Reboot', ok: () => push('confirm_reboot') },
-      { label: 'About', value: `tvbox ${state.version ?? ''}`, ok: () => push('about') },
+      { label: 'About', value: `TvBox MediaOS ${state.version ?? ''}`, ok: () => push('about') },
     ],
   }),
   outputs: () => ({ title: 'Audio output', items: outputItems(pop),
@@ -183,7 +183,7 @@ const VIEWS = {
     };
   },
   about: () => ({ title: 'About', items: [],
-    about: { Version: `tvbox ${state.version ?? ''}`, Name: state.mdns_name || state.hostname,
+    about: { Version: `TvBox MediaOS ${state.version ?? ''}`, Name: state.mdns_name || state.hostname,
              Address: state.address || 'not connected',
              'Phone remote': state.address ? `http://${state.mdns_name || state.address}:8080` : '—',
              Kernel: state.kernel } }),

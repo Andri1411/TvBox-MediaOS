@@ -2,10 +2,10 @@
 # shellcheck disable=SC2034
 # tvbox installer ISO, derived from archiso's releng profile (UEFI only).
 
-iso_name="tvbox"
+iso_name="tvbox-mediaos"
 iso_label="TVBOX_$(date --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y%m)"
-iso_publisher="tvbox <https://github.com/Andri1411/mediaOS>"
-iso_application="tvbox installer"
+iso_publisher="TvBox MediaOS <https://github.com/Andri1411/TvBox-MediaOS>"
+iso_application="TvBox MediaOS installer"
 iso_version="$(date --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y.%m.%d)"
 install_dir="arch"
 buildmodes=('iso')

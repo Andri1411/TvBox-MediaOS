@@ -1,4 +1,4 @@
-# mediaOS (tvbox)
+# TvBox MediaOS
 
 A small Arch Linux–based system for a media PC behind the TV, used entirely
 from the couch with an Xbox controller or a phone. It boots straight into a
@@ -34,8 +34,8 @@ Either download it from GitHub (Actions → *ci* → *Run workflow* with
 artifact), or build it yourself on Linux (needs docker, see "Building"):
 
 ```sh
-git clone https://github.com/Andri1411/mediaOS && cd mediaOS
-make iso            # → build/iso/tvbox-<date>-x86_64.iso
+git clone https://github.com/Andri1411/TvBox-MediaOS && cd TvBox-MediaOS
+make iso            # → build/iso/tvbox-mediaos-<date>-x86_64.iso
 ```
 
 ## 2. Write it to a USB stick
@@ -44,7 +44,7 @@ This erases the stick. Find its device name first (`lsblk` before and after
 plugging it in, e.g. `/dev/sdb`), then:
 
 ```sh
-sudo dd if=build/iso/tvbox-<date>-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync
+sudo dd if=build/iso/tvbox-mediaos-<date>-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 
 GNOME Disks ("Restore Disk Image") or balenaEtcher work too.
@@ -88,7 +88,7 @@ volume, **Y** = keyboard. Everything else is in the
 ## Updates
 
 Every change merged into `main` here is built, signed and published by CI to
-[andri1411.github.io/mediaOS](https://andri1411.github.io/mediaOS/), together
+[andri1411.github.io/TvBox-MediaOS](https://andri1411.github.io/TvBox-MediaOS/), together
 with Arch Linux's own updates from the Arch mirrors. The box looks for
 updates once a day and shows a badge on the Settings tile; nothing is
 installed until you choose **Settings → Updates → Install**. A snapshot is

@@ -147,7 +147,7 @@ def main():
     check("paired: state readable, device listed", len(st.get("devices", [])) >= 1, str(st)[:200])
     device_id = st.get("devices", [{}])[-1].get("id")
     status, _, body = http("/phone", cookie=cookie)
-    check("paired: the remote page loads", status == 200 and "tvbox remote" in body, str(status))
+    check("paired: the remote page loads", status == 200 and "TvBox MediaOS remote" in body, str(status))
 
     # --- what a phone may not do ---
     check("phone cannot open the TV's own pages", http("/home", cookie=cookie)[0] == 403)

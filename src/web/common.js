@@ -16,10 +16,11 @@ function bar(percent) {
   return `<span class="bar"><i style="width:${Math.max(0, Math.min(100, percent))}%"></i></span>`;
 }
 
+// Safe in element content and in quoted attribute values. (Wi-Fi network
+// and Bluetooth device names are chosen by whoever is nearby.)
 function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text ?? '';
-  return div.innerHTML;
+  return String(text ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // role: "overlay" or "home". onMessage(msg) for every hub message; onDrop()

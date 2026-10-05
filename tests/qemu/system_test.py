@@ -65,6 +65,8 @@ def main():
     # --- update service (read-only side) ---
     check("update service socket belongs to group tv",
           subprocess.run(["stat", "-c", "%G %a", UPDATER], capture_output=True, text=True).stdout.strip() == "tv 660")
+    # (A fresh box has its "fresh install" snapshot; make sure there is one.)
+    subprocess.run(["snapper", "-c", "root", "create", "-d", "system test"], check=False)
     snaps = updater({"cmd": "snapshots"})
     check("the tv user can list snapshots", snaps.get("event") == "done" and len(snaps.get("snapshots", [])) >= 1,
           str(snaps)[:200])
@@ -74,6 +76,7 @@ def main():
                             f"import socket; socket.socket(socket.AF_UNIX).connect('{UPDATER}')"],
                            capture_output=True, text=True)
     check("other users can't reach the update service", other.returncode != 0, other.stderr[-100:])
+    api(cmd="snapshots")
     st = wait_state(lambda s: s.get("update", {}).get("snapshots"), 10)
     check("the hub knows the snapshots", bool(st.get("update", {}).get("snapshots")), str(st.get("update"))[:200])
     timer = subprocess.run(["systemctl", "is-enabled", "tvbox-boot-ok.timer"], capture_output=True, text=True)

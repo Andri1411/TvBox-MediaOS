@@ -113,6 +113,7 @@ class Hub:
         self.devices = DeviceStore()
         self.updates = Updates(self)
         self.bluetooth = Bluetooth(self)
+        self.mdns = ""                        # e.g. tv.local, as Avahi announces it
         self.network = {"wifi_device": None, "ssid": None, "ethernet": False, "known": [],
                         "networks": [], "scanning": False, "connecting": None, "message": ""}
         self._volume_pending = 0
@@ -128,7 +129,7 @@ class Hub:
                 "volume": self.volume, "muted": self.muted, "sinks": self.sinks,
                 "config_errors": self.config_errors, "input_connected": self.input_connected,
                 "devices": self.devices.listing(), "update": self.updates.state(),
-                "network": self.network, "bluetooth": self.bluetooth.state(),
+                "network": self.network, "bluetooth": self.bluetooth.state(), "mdns_name": self.mdns,
                 "version": release_version(), "hostname": socket.gethostname(),
                 "address": lan_address()}
 
@@ -318,6 +319,7 @@ class Hub:
 
     async def refresh_network(self) -> None:
         self.network.update(await network.status())
+        self.mdns = await mdns_name()
         self.push_state()
 
     async def _apply_volume(self) -> None:
@@ -711,6 +713,8 @@ class Hub:
         self.spawn(self.updates.refresh_snapshots())
         self.spawn(self.bluetooth.start())
         self.spawn(self.display_watch())
+        self.spawn(self.refresh_network())
+        self.spawn(self.updates.daily_check())
         self.watch_services()
         sd_notify("READY=1")
         log.info("listening on port %d", port)

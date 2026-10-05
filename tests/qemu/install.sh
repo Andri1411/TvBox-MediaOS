@@ -108,6 +108,7 @@ check "home screen is up"            'for i in $(seq 30); do curl -sf 127.0.0.1:
 check "sway responds over IPC"      'sudo -u tv env XDG_RUNTIME_DIR=/run/user/$(id -u tv) sh -c "swaymsg -s \$(ls \$XDG_RUNTIME_DIR/sway-ipc.*.sock | head -1) -t get_outputs" | grep -q "\"active\": true"'
 check "user services started"       'systemctl --user -M tv@ is-active tvbox-session.target'
 check "snapper config"              'snapper -c root list >/dev/null'
+check "a fresh-install snapshot"     'snapper -c root list | grep -q "fresh install"'
 check "zram swap active"            'swapon --show | grep -q zram'
 check "journald size limit"         'systemd-analyze cat-config systemd/journald.conf | grep -q SystemMaxUse=64M'
 check "suspend disabled"            'systemd-analyze cat-config systemd/sleep.conf | grep -q AllowSuspend=no'

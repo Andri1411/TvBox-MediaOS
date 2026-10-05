@@ -96,7 +96,7 @@ $('apps').addEventListener('click', (event) => {
 function renderSettings() {
   if (document.activeElement !== $('volume')) $('volume').value = state.volume ?? 0;
   $('volume').disabled = state.volume == null;
-  $('outputs').innerHTML = (state.sinks ?? []).map((s) => `<li class="tap" data-id="${s.id}">
+  $('outputs').innerHTML = (state.sinks ?? []).map((s) => `<li class="tap" data-id="${escapeHtml(s.id)}">
       <span>${escapeHtml(s.name)}</span><span class="dot ${s.default ? 'on' : ''}"></span></li>`).join('')
     || '<li><span class="sub">No audio output</span></li>';
   $('scales').innerHTML = ['auto', '1', '1.25', '1.5', '2'].map((scale) =>
@@ -189,7 +189,7 @@ $('snapshots').addEventListener('click', (event) => {
 $('volume').addEventListener('change', () => send('volume_set', { percent: Number($('volume').value) }));
 $('outputs').addEventListener('click', (event) => {
   const li = event.target.closest('li[data-id]');
-  if (li) send('audio_output', { id: Number(li.dataset.id) });
+  if (li) send('audio_output', { id: li.dataset.id });
 });
 $('scales').addEventListener('click', (event) => {
   const scale = event.target.dataset.scale;

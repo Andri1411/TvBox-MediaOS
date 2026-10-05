@@ -26,7 +26,7 @@ def test_default_services_from_the_brief():
     assert [s.id for s in found] == ["youtube", "netflix", "disney", "floatplane", "jellyfin"]
     youtube, jellyfin = found[0], found[-1]
     assert youtube.kind == "browser" and youtube.url == "https://www.youtube.com/tv"
-    assert "SmartTV" in youtube.user_agent              # preset name resolved
+    assert "PS4" in youtube.user_agent              # preset name resolved
     assert found[1].user_agent == ""                    # Netflix: the browser's own
     assert jellyfin.kind == "native" and jellyfin.exec[0] == "jellyfin-desktop"
     assert [s.id for s in found if s.nav] == ["netflix", "disney"]
@@ -50,7 +50,7 @@ url = "https://www.youtube.com/tv#/settings"
     assert [s.id for s in found] == ["plex", "youtube", "disney", "floatplane", "jellyfin"]
     youtube = found[1]
     assert youtube.url.endswith("#/settings") and youtube.name == "YouTube"   # other keys kept
-    assert "SmartTV" in youtube.user_agent
+    assert "PS4" in youtube.user_agent
 
 
 def test_problems_are_reported_together():
@@ -96,7 +96,7 @@ def test_browser_command_line(tmp_path, monkeypatch):
     assert f"--user-data-dir={tmp_path}/data/tvbox/profiles/youtube" in argv
     assert "--kiosk" not in argv
     assert "--disk-cache-dir=/run/user/1000/tvbox/cache/youtube" in argv
-    assert any(a.startswith("--user-agent=") and "SmartTV" in a for a in argv)
+    assert any(a.startswith("--user-agent=") and "PS4" in a for a in argv)
     assert any(a.startswith("--enable-features=") and "AcceleratedVideoDecodeLinuxGL" in a for a in argv)
     assert not any(a.startswith("--user-agent") for a in app.browser_argv(netflix, tmp_path))
     assert not any(a.startswith("--load-extension") for a in argv)

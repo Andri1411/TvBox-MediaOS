@@ -132,6 +132,11 @@ def main():
     check("Xbox long press opens the system menu", st["overlay"] == "menu" and mode == "ui", f"{st['overlay']} {mode}")
     check("menu knows volume and audio outputs", st["volume"] is not None and len(st["sinks"]) >= 1,
           f"{st['volume']} {st['sinks']}")
+    output = st["sinks"][0]["id"] if st["sinks"] else ""
+    reply = api(cmd="audio_output", id=output)
+    st = wait_state(lambda s: any(o["default"] for o in s["sinks"]), 5)
+    check("choosing an audio output makes it the current one", reply.get("ok") is not False
+          and [o["id"] for o in st["sinks"] if o["default"]] == [output], f"{output} {st['sinks']} {reply}")
     volume = st["volume"]
     drain(out, 0.2)
 

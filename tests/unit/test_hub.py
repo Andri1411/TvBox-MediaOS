@@ -1,4 +1,6 @@
 import asyncio
+import json
+from pathlib import Path
 
 from aiohttp.test_utils import TestClient, TestServer
 
@@ -14,24 +16,63 @@ def test_parse_volume():
     assert audio.parse_volume("") is None
 
 
-def test_parse_sinks():
-    node = "PipeWire:Interface:Node"
-    dump = [
-        {"id": 31, "type": "PipeWire:Interface:Metadata", "props": {"metadata.name": "default"},
-         "metadata": [{"key": "default.audio.sink", "value": {"name": "alsa_output.hdmi"}},
-                      {"key": "default.audio.source", "value": {"name": "x"}}]},
-        {"id": 50, "type": node, "info": {"props": {
-            "media.class": "Audio/Sink", "node.name": "bluez_output.aa", "node.description": "Headphones"}}},
-        {"id": 48, "type": node, "info": {"props": {
-            "media.class": "Audio/Sink", "node.name": "alsa_output.hdmi", "node.description": "HDMI / TV"}}},
-        {"id": 49, "type": node, "info": {"props": {"media.class": "Audio/Source", "node.name": "mic"}}},
-        {"id": 51, "type": node, "info": None},
+def box_dump(active_profile=None, bluetooth=False):
+    """`pw-dump` of the real box (Alder Lake, ALC257 + HDMI to a TCL TV),
+    trimmed; optionally with another active card profile and a Bluetooth sink."""
+    dump = json.loads((Path(__file__).parent / "data/pwdump-alc257-hdmi.json").read_text())
+    if active_profile:
+        card = next(o for o in dump if o["id"] == 42)
+        card["info"]["params"]["Profile"] = [{"index": active_profile}]
+    if bluetooth:
+        dump.append({"id": 70, "type": "PipeWire:Interface:Node", "info": {"props": {
+            "media.class": "Audio/Sink", "node.name": "bluez_output.aa", "node.description": "Headphones"}}})
+    return dump
+
+
+def test_outputs_are_the_card_connectors_and_other_sinks():
+    assert audio.parse_outputs(box_dump(bluetooth=True)) == [
+        {"id": "sink:70", "name": "Headphones", "default": False},
+        {"id": "card:42:1", "name": "Speakers (analog)", "default": False, "hdmi": False},
+        {"id": "card:42:3", "name": "TCL SMART TV (HDMI)", "default": True, "hdmi": True},
     ]
-    assert audio.parse_sinks(dump) == [
-        {"id": 48, "name": "HDMI / TV", "default": True},
-        {"id": 50, "name": "Headphones", "default": False},
-    ]
-    assert audio.parse_sinks([]) == []
+    assert audio.parse_outputs([]) == []
+
+
+def test_analog_with_a_tv_on_hdmi_switches_to_hdmi():
+    analog = box_dump(active_profile=1)          # output:analog-stereo+input:analog-stereo
+    assert [o["name"] for o in audio.parse_outputs(analog) if o["default"]] == ["Speakers (analog)"]
+    assert audio.hdmi_switch(analog) == (42, 3)  # output:hdmi-stereo+input:analog-stereo
+    assert audio.hdmi_switch(box_dump()) is None  # already on HDMI
+
+
+def test_no_switch_without_a_tv():
+    dump = box_dump(active_profile=1)
+    card = next(o for o in dump if o["id"] == 42)
+    for route in card["info"]["params"]["EnumRoute"]:
+        if route["name"].startswith("hdmi"):
+            route["available"] = "no"
+    assert audio.hdmi_switch(dump) is None
+    assert [o["name"] for o in audio.parse_outputs(dump)] == ["Speakers (analog)"]
+
+
+def test_a_card_with_one_profile():
+    """QEMU's sound card: a single analog line out, one profile."""
+    card = {"id": 42, "type": "PipeWire:Interface:Device", "info": {
+        "props": {"device.api": "alsa"},
+        "params": {"EnumProfile": [{"index": 0, "name": "off", "available": "yes", "priority": 0},
+                                   {"index": 1, "name": "output:analog-stereo", "available": "yes", "priority": 6500},
+                                   {"index": 2, "name": "pro-audio", "available": "unknown", "priority": 1}],
+                   "Profile": [{"index": 1}],
+                   "EnumRoute": [{"index": 0, "direction": "Output", "name": "analog-output-lineout",
+                                  "description": "Line Out", "available": "unknown", "profiles": [1],
+                                  "info": [1, "port.type", "line"]}]}}}
+    sink = {"id": 49, "type": "PipeWire:Interface:Node", "info": {"props": {
+        "media.class": "Audio/Sink", "node.name": "alsa_output.analog-stereo", "device.id": 42}}}
+    meta = {"id": 1, "type": "PipeWire:Interface:Metadata", "props": {"metadata.name": "default"},
+            "metadata": [{"key": "default.audio.sink", "value": {"name": "alsa_output.analog-stereo"}}]}
+    assert audio.parse_outputs([meta, card, sink]) == [
+        {"id": "card:42:1", "name": "Line Out (analog)", "default": True, "hdmi": False}]
+    assert audio.hdmi_switch([meta, card, sink]) is None
 
 
 def test_workspace_names_cannot_inject_sway_commands():

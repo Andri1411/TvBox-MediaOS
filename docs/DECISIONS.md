@@ -1084,6 +1084,7 @@ Checked and left as they are (accepted risks):
 - **A paired phone is fully trusted:** through the bindings editor and the
   text field it could reach the maintenance terminal and get a shell as
   `tv` (not root). Pairing needs the TV's QR code, i.e. someone in the room.
+- **The maintenance terminal** (Ctrl+Alt+Return) stays, decided with the owner: with pairing closed, only a keyboard plugged into the box reaches it.
 - **Physical access** (a USB keyboard, or booting another system) gives
   full access; the disk isn't encrypted and Secure Boot is off. That is the
   nature of an appliance without a login.

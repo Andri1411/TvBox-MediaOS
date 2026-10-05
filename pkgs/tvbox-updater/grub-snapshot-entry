@@ -11,7 +11,7 @@ initramfs=initramfs-${kernel#vmlinuz-}.img
 # shellcheck source=/dev/null
 . /etc/default/grub
 cat <<EOF
-menuentry 'tvbox: backup snapshot' --class tvbox --id tvbox-snapshot {
+menuentry 'TvBox MediaOS: backup snapshot' --class tvbox --id tvbox-snapshot {
 	if [ -z "\$tvbox_snapshot" ]; then set tvbox_snapshot="\$tvbox_fallback"; fi
 	load_video
 	set gfxpayload=keep

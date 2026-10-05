@@ -273,7 +273,7 @@ $('tabs').addEventListener('click', (event) => {
 
 function render() {
   const current = state.services?.find((s) => s.focused);
-  $('app-name').textContent = current?.name ?? (state.app === 'home' ? 'Home' : 'tvbox');
+  $('app-name').textContent = current?.name ?? (state.app === 'home' ? 'Home' : 'TvBox MediaOS');
   $('link-state').textContent = state.type ? 'connected' : 'connecting…';
   $('link-state').classList.toggle('off', !state.type);
   renderApps();

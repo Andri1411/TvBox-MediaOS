@@ -457,5 +457,5 @@ Settled:
    (outcome: Chromium, Widevine downloaded from Google on the box).
 
 9. **Repo hosting and signing:** CI builds, signs and publishes `[tvbox]` to
-   GitHub Pages at `https://andri1411.github.io/mediaOS/x86_64`. See
+   GitHub Pages at `https://andri1411.github.io/TvBox-MediaOS/x86_64`. See
    DECISIONS.md, "Package repository: GitHub Pages, signed in CI".

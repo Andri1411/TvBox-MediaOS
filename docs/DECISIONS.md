@@ -1092,3 +1092,14 @@ Checked and left as they are (accepted risks):
   index fetched over HTTPS, not against Google's GPG signature.
 - Wi-Fi passwords are passed to `nmcli` on its command line (visible to
   local processes for a moment); only root and `tv` exist on the box.
+
+### Renamed to TvBox MediaOS
+
+The GitHub repository is now `Andri1411/TvBox-MediaOS`, and "TvBox MediaOS"
+is the name shown on screen (home screen, phone remote, About, installer,
+boot menu, ISO file name). GitHub Pages moved with the repository, so the
+update address is now `https://andri1411.github.io/TvBox-MediaOS/` (the old
+one doesn't redirect). The internal name stays `tvbox`: package names,
+paths, services and the `[tvbox]` repository are unchanged, because pacman
+package names must be lowercase and renaming them on an installed box would
+need a migration for no visible gain.

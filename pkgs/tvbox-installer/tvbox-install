@@ -18,7 +18,7 @@ NAME=tvbox
 REPO_DIR=/opt/$NAME/repo
 MNT=/mnt
 LOG=/var/log/$NAME-install.log
-TITLE="tvbox installer"
+TITLE="TvBox MediaOS installer"
 FWCFG=/sys/firmware/qemu_fw_cfg/by_name/opt/tvbox/autoinstall/raw
 
 AUTO=0
@@ -323,11 +323,11 @@ END
     chmod 750 "$MNT/.snapshots"
 
     # Bootloader. /boot lives inside @ so snapshots carry their kernel.
-    sed -i -e 's/^GRUB_DISTRIBUTOR=.*/GRUB_DISTRIBUTOR="tvbox"/' \
+    sed -i -e 's/^GRUB_DISTRIBUTOR=.*/GRUB_DISTRIBUTOR="TvBox MediaOS"/' \
            -e 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=2/' \
            -e 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3 rd.udev.log_level=3"/' \
            "$MNT/etc/default/grub"
-    sed -i 's/^#\?GRUB_BTRFS_SUBMENUNAME=.*/GRUB_BTRFS_SUBMENUNAME="tvbox snapshots"/' \
+    sed -i 's/^#\?GRUB_BTRFS_SUBMENUNAME=.*/GRUB_BTRFS_SUBMENUNAME="TvBox MediaOS snapshots"/' \
            "$MNT/etc/default/grub-btrfs/config"
     chr mkinitcpio -P
     chr "/usr/share/libalpm/scripts/$NAME-grub-update"

@@ -24,7 +24,7 @@ repo: packages ## Assemble the pacman repo (build/repo) from build/pkgs
 iso: repo ## Build the installer ISO into build/iso (needs a privileged container)
 	RUN_PRIVILEGED=1 $(RUN) scripts/build-iso.sh
 
-pages: repo ## Stage build/repo as a static site in build/pages (CI publishes it)
+pages: ## Stage build/repo (from make repo) as a static site in build/pages (CI publishes it)
 	scripts/stage-pages.sh
 
 serve-repo: ## Serve build/repo over HTTP so a QEMU guest can pacman -Syu from it

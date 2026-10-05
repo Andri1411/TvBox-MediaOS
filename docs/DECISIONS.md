@@ -992,3 +992,14 @@ Start connects).
 - Frozen native apps (Jellyfin) are not detected; Jellyfin's client has a
   DevTools port too, so the same ping could be added once its behaviour on
   the box is known.
+
+## After Phase 6
+
+### The package repository was never published (CI fix)
+Every signed build on `main` had failed since the first merge, so GitHub Pages
+never received `[tvbox]` and an installed box could not have updated. Pull
+request builds are unsigned and skip publishing, so they passed and hid it.
+Cause: `make pages` depended on `make repo`, which rebuilt every package a
+second time without `CONTAINER=docker`; that rebuild picked podman, which
+could not remove the files the docker build had left. `make pages` now only
+stages the repository that the previous CI step built.

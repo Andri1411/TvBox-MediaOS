@@ -20,8 +20,10 @@
 order = ["youtube", "netflix", "disney", "floatplane", "jellyfin"]
 
 [user_agents]
-# A smart-TV browser: makes youtube.com/tv serve the TV interface.
-tv = "Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.211 Safari/537.36 WebAppManager"
+# A TV device: makes youtube.com/tv serve the TV interface. The PS4's is the
+# one YouTube offers 4K (and 1440p, 60 fps) to; with LG webOS, Tizen, Android
+# TV or PS5 user agents it stops at 720p.
+tv = "Mozilla/5.0 (PS4; Leanback Shell) Gecko/20100101 Firefox/65.0 LeanbackShell/01.00.01.75 Sony PS4/ (PS4, , no, CH)"
 
 [[service]]
 id = "youtube"

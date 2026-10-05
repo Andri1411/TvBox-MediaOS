@@ -29,7 +29,7 @@ from aiohttp import WSMsgType, web
 from . import NAME, audio, bindings, health, network, services, sway
 from .bluetooth import Bluetooth
 from .apps import HOME, AppManager
-from .auth import COOKIE, DeviceStore, classify, device_name
+from .auth import COOKIE, DeviceStore, classify, default_store_path, device_name
 from .updates import Updates, UpdaterError
 from .util import (IN_CLOSE_WRITE, IN_CREATE, IN_DELETE, IN_MOVED_FROM, IN_MOVED_TO, Inotify,
                    input_socket, runtime_dir, sd_notify, setup_logging, watchdog_interval)
@@ -64,6 +64,11 @@ def release_version() -> str:
 
 def display_conf() -> Path:
     return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / NAME / "display.conf"
+
+
+def ANALOG_CHOSEN() -> Path:  # noqa: N802 (reads like the constant it almost is)
+    """Exists while the user prefers a sound card's analog output over HDMI."""
+    return default_store_path().parent / "audio-analog"
 
 
 def display_scale() -> str:
@@ -267,7 +272,16 @@ class Hub:
 
     # -- system -------------------------------------------------------------
     async def refresh_audio(self) -> None:
-        volume, self.sinks = await asyncio.gather(audio.get_volume(), audio.list_sinks())
+        data = await audio.dump()
+        # Sound to the TV: a card playing through its analog jack while a TV
+        # is connected to its HDMI switches to HDMI (the analog profile ranks
+        # higher in PipeWire), unless the analog output was chosen on purpose.
+        switch = audio.hdmi_switch(data)
+        if switch and not ANALOG_CHOSEN().exists() and await audio.set_profile(*switch):
+            log.info("audio: switched sound card %d to HDMI (profile %d)", *switch)
+            await asyncio.sleep(0.5)
+            data = await audio.dump()
+        volume, self.sinks = await asyncio.gather(audio.get_volume(), audio.list_outputs(data))
         if volume:
             self.volume, self.muted = volume
         else:
@@ -497,7 +511,18 @@ class Hub:
             self.volume, self.muted = volume if volume else (None, False)
             self.volume_changed()
         elif cmd == "audio_output":
-            await audio.set_default_sink(int(msg["id"]))
+            chosen = next((s for s in self.sinks if s["id"] == msg["id"]), None)
+            if not chosen:
+                raise ValueError("unknown audio output")
+            if chosen["id"].startswith("card:"):
+                # Remember a deliberate analog choice, so HDMI doesn't take over again.
+                flag = ANALOG_CHOSEN()
+                flag.parent.mkdir(parents=True, exist_ok=True)
+                if chosen.get("hdmi"):
+                    flag.unlink(missing_ok=True)
+                else:
+                    flag.touch()
+            await audio.select_output(chosen["id"])
             await self.refresh_audio()
             name = next((s["name"] for s in self.sinks if s["default"]), None)
             self.osd(kind="message", text=f"Audio: {name}" if name else "No audio output")

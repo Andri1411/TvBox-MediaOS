@@ -1,0 +1,949 @@
+[
+ {
+  "id": 38,
+  "type": "PipeWire:Interface:Metadata",
+  "props": {
+   "client.id": 33,
+   "factory.id": 7,
+   "metadata.name": "default",
+   "module.id": 6,
+   "object.serial": 40
+  },
+  "metadata": [
+   {
+    "subject": 0,
+    "key": "default.audio.sink",
+    "type": "Spa:String:JSON",
+    "value": {
+     "name": "alsa_output.pci-0000_00_1f.3.hdmi-stereo"
+    }
+   }
+  ]
+ },
+ {
+  "id": 42,
+  "type": "PipeWire:Interface:Device",
+  "info": {
+   "props": {
+    "device.api": "alsa",
+    "device.name": "alsa_card.pci-0000_00_1f.3",
+    "device.description": "Built-in Audio",
+    "media.class": "Audio/Device"
+   },
+   "params": {
+    "EnumProfile": [
+     {
+      "index": 0,
+      "name": "off",
+      "description": "Off",
+      "priority": 0,
+      "available": "yes",
+      "classes": [
+       0
+      ]
+     },
+     {
+      "index": 1,
+      "name": "output:analog-stereo+input:analog-stereo",
+      "description": "Analog Stereo Duplex",
+      "priority": 6565,
+      "available": "yes",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         8
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 2,
+      "name": "output:analog-stereo",
+      "description": "Analog Stereo Output",
+      "priority": 6500,
+      "available": "yes",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         8
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 3,
+      "name": "output:hdmi-stereo+input:analog-stereo",
+      "description": "Digital Stereo (HDMI) Output + Analog Stereo Input",
+      "priority": 5965,
+      "available": "yes",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         9
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 4,
+      "name": "output:hdmi-stereo",
+      "description": "Digital Stereo (HDMI) Output",
+      "priority": 5900,
+      "available": "yes",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         9
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 5,
+      "name": "output:hdmi-stereo-extra1+input:analog-stereo",
+      "description": "Digital Stereo (HDMI 2) Output + Analog Stereo Input",
+      "priority": 5765,
+      "available": "no",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         11
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 6,
+      "name": "output:hdmi-stereo-extra2+input:analog-stereo",
+      "description": "Digital Stereo (HDMI 3) Output + Analog Stereo Input",
+      "priority": 5765,
+      "available": "no",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         14
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 7,
+      "name": "output:hdmi-stereo-extra3+input:analog-stereo",
+      "description": "Digital Stereo (HDMI 4) Output + Analog Stereo Input",
+      "priority": 5765,
+      "available": "no",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         17
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 8,
+      "name": "output:hdmi-stereo-extra1",
+      "description": "Digital Stereo (HDMI 2) Output",
+      "priority": 5700,
+      "available": "no",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         11
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 9,
+      "name": "output:hdmi-stereo-extra2",
+      "description": "Digital Stereo (HDMI 3) Output",
+      "priority": 5700,
+      "available": "no",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         14
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 10,
+      "name": "output:hdmi-stereo-extra3",
+      "description": "Digital Stereo (HDMI 4) Output",
+      "priority": 5700,
+      "available": "no",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         17
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 11,
+      "name": "output:hdmi-surround+input:analog-stereo",
+      "description": "Digital Surround 5.1 (HDMI) Output + Analog Stereo Input",
+      "priority": 865,
+      "available": "yes",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         10
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 12,
+      "name": "output:hdmi-surround",
+      "description": "Digital Surround 5.1 (HDMI) Output",
+      "priority": 800,
+      "available": "yes",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         10
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 13,
+      "name": "output:hdmi-surround-extra1+input:analog-stereo",
+      "description": "Digital Surround 5.1 (HDMI 2) Output + Analog Stereo Input",
+      "priority": 665,
+      "available": "no",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         12
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 14,
+      "name": "output:hdmi-surround71-extra1+input:analog-stereo",
+      "description": "Digital Surround 7.1 (HDMI 2) Output + Analog Stereo Input",
+      "priority": 665,
+      "available": "no",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         13
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 15,
+      "name": "output:hdmi-surround-extra2+input:analog-stereo",
+      "description": "Digital Surround 5.1 (HDMI 3) Output + Analog Stereo Input",
+      "priority": 665,
+      "available": "no",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         15
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 16,
+      "name": "output:hdmi-surround71-extra2+input:analog-stereo",
+      "description": "Digital Surround 7.1 (HDMI 3) Output + Analog Stereo Input",
+      "priority": 665,
+      "available": "no",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         16
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 17,
+      "name": "output:hdmi-surround-extra3+input:analog-stereo",
+      "description": "Digital Surround 5.1 (HDMI 4) Output + Analog Stereo Input",
+      "priority": 665,
+      "available": "no",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         18
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 18,
+      "name": "output:hdmi-surround71-extra3+input:analog-stereo",
+      "description": "Digital Surround 7.1 (HDMI 4) Output + Analog Stereo Input",
+      "priority": 665,
+      "available": "no",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ],
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         19
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 19,
+      "name": "output:hdmi-surround-extra1",
+      "description": "Digital Surround 5.1 (HDMI 2) Output",
+      "priority": 600,
+      "available": "no",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         12
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 20,
+      "name": "output:hdmi-surround71-extra1",
+      "description": "Digital Surround 7.1 (HDMI 2) Output",
+      "priority": 600,
+      "available": "no",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         13
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 21,
+      "name": "output:hdmi-surround-extra2",
+      "description": "Digital Surround 5.1 (HDMI 3) Output",
+      "priority": 600,
+      "available": "no",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         15
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 22,
+      "name": "output:hdmi-surround71-extra2",
+      "description": "Digital Surround 7.1 (HDMI 3) Output",
+      "priority": 600,
+      "available": "no",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         16
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 23,
+      "name": "output:hdmi-surround-extra3",
+      "description": "Digital Surround 5.1 (HDMI 4) Output",
+      "priority": 600,
+      "available": "no",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         18
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 24,
+      "name": "output:hdmi-surround71-extra3",
+      "description": "Digital Surround 7.1 (HDMI 4) Output",
+      "priority": 600,
+      "available": "no",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         19
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 25,
+      "name": "input:analog-stereo",
+      "description": "Analog Stereo Input",
+      "priority": 65,
+      "available": "yes",
+      "classes": [
+       1,
+       [
+        "Audio/Source",
+        1,
+        "card.profile.devices",
+        [
+         0
+        ]
+       ]
+      ]
+     },
+     {
+      "index": 26,
+      "name": "pro-audio",
+      "description": "Pro Audio",
+      "priority": 1,
+      "available": "unknown",
+      "classes": [
+       2,
+       [
+        "Audio/Source",
+        2,
+        "card.profile.devices",
+        [
+         6,
+         7
+        ]
+       ],
+       [
+        "Audio/Sink",
+        5,
+        "card.profile.devices",
+        [
+         1,
+         2,
+         3,
+         4,
+         5
+        ]
+       ]
+      ]
+     }
+    ],
+    "Profile": [
+     {
+      "index": 4,
+      "name": "output:hdmi-stereo",
+      "description": "Digital Stereo (HDMI) Output",
+      "priority": 5900,
+      "available": "yes",
+      "classes": [
+       1,
+       [
+        "Audio/Sink",
+        1,
+        "card.profile.devices",
+        [
+         9
+        ]
+       ]
+      ],
+      "save": true
+     }
+    ],
+    "EnumRoute": [
+     {
+      "index": 0,
+      "direction": "Input",
+      "name": "analog-input",
+      "description": "Analog Input",
+      "priority": 10000,
+      "available": "unknown",
+      "info": [
+       2,
+       "port.type",
+       "analog",
+       "card.profile.port",
+       "0"
+      ],
+      "profiles": [
+       25,
+       1,
+       3,
+       11,
+       5,
+       13,
+       14,
+       6,
+       15,
+       16,
+       7,
+       17,
+       18
+      ],
+      "devices": [
+       0
+      ]
+     },
+     {
+      "index": 1,
+      "direction": "Output",
+      "name": "analog-output-speaker",
+      "description": "Speakers",
+      "priority": 10000,
+      "available": "unknown",
+      "info": [
+       4,
+       "port.type",
+       "speaker",
+       "port.availability-group",
+       "Legacy 1",
+       "device.icon_name",
+       "audio-speakers",
+       "card.profile.port",
+       "1"
+      ],
+      "profiles": [
+       2,
+       1
+      ],
+      "devices": [
+       8
+      ]
+     },
+     {
+      "index": 2,
+      "direction": "Output",
+      "name": "analog-output-headphones",
+      "description": "Headphones",
+      "priority": 9900,
+      "available": "no",
+      "info": [
+       4,
+       "port.type",
+       "headphones",
+       "port.availability-group",
+       "Legacy 2",
+       "device.icon_name",
+       "audio-headphones",
+       "card.profile.port",
+       "2"
+      ],
+      "profiles": [
+       2,
+       1
+      ],
+      "devices": [
+       8
+      ]
+     },
+     {
+      "index": 3,
+      "direction": "Output",
+      "name": "hdmi-output-0",
+      "description": "HDMI / DisplayPort",
+      "priority": 5900,
+      "available": "yes",
+      "info": [
+       8,
+       "port.type",
+       "hdmi",
+       "port.availability-group",
+       "Legacy 3",
+       "device.icon_name",
+       "video-display",
+       "card.profile.port",
+       "3",
+       "device.product.name",
+       "TCL SMART TV",
+       "iec958.codecs.detected",
+       "[\"PCM\",\"AC3\",\"EAC3\"]",
+       "audio.channels.detected",
+       "2",
+       "audio.position.detected",
+       "[FL,FR]"
+      ],
+      "profiles": [
+       4,
+       3,
+       12,
+       11
+      ],
+      "devices": [
+       9,
+       10
+      ]
+     },
+     {
+      "index": 4,
+      "direction": "Output",
+      "name": "hdmi-output-1",
+      "description": "HDMI / DisplayPort 2",
+      "priority": 5800,
+      "available": "no",
+      "info": [
+       4,
+       "port.type",
+       "hdmi",
+       "port.availability-group",
+       "Legacy 4",
+       "device.icon_name",
+       "video-display",
+       "card.profile.port",
+       "4"
+      ],
+      "profiles": [
+       8,
+       5,
+       19,
+       13,
+       20,
+       14
+      ],
+      "devices": [
+       11,
+       12,
+       13
+      ]
+     },
+     {
+      "index": 5,
+      "direction": "Output",
+      "name": "hdmi-output-2",
+      "description": "HDMI / DisplayPort 3",
+      "priority": 5700,
+      "available": "no",
+      "info": [
+       4,
+       "port.type",
+       "hdmi",
+       "port.availability-group",
+       "Legacy 5",
+       "device.icon_name",
+       "video-display",
+       "card.profile.port",
+       "5"
+      ],
+      "profiles": [
+       9,
+       6,
+       21,
+       15,
+       22,
+       16
+      ],
+      "devices": [
+       14,
+       15,
+       16
+      ]
+     },
+     {
+      "index": 6,
+      "direction": "Output",
+      "name": "hdmi-output-3",
+      "description": "HDMI / DisplayPort 4",
+      "priority": 5600,
+      "available": "no",
+      "info": [
+       4,
+       "port.type",
+       "hdmi",
+       "port.availability-group",
+       "Legacy 6",
+       "device.icon_name",
+       "video-display",
+       "card.profile.port",
+       "6"
+      ],
+      "profiles": [
+       10,
+       7,
+       23,
+       17,
+       24,
+       18
+      ],
+      "devices": [
+       17,
+       18,
+       19
+      ]
+     }
+    ],
+    "Route": [
+     {
+      "index": 3,
+      "direction": "Output",
+      "name": "hdmi-output-0",
+      "description": "HDMI / DisplayPort",
+      "priority": 5900,
+      "available": "yes",
+      "info": [
+       10,
+       "port.type",
+       "hdmi",
+       "port.availability-group",
+       "Legacy 3",
+       "device.icon_name",
+       "video-display",
+       "card.profile.port",
+       "3",
+       "device.product.name",
+       "TCL SMART TV",
+       "iec958.codecs.detected",
+       "[\"PCM\",\"AC3\",\"EAC3\"]",
+       "audio.channels.detected",
+       "2",
+       "audio.position.detected",
+       "[FL,FR]",
+       "route.hw-mute",
+       "false",
+       "route.hw-volume",
+       "false"
+      ],
+      "profiles": [
+       4,
+       3,
+       12,
+       11
+      ],
+      "device": 9,
+      "props": {
+       "mute": false,
+       "channelVolumes": [
+        0.063997,
+        0.063997
+       ],
+       "volumeBase": 1.0,
+       "volumeStep": 1.5e-05,
+       "channelMap": [
+        "FL",
+        "FR"
+       ],
+       "softVolumes": [
+        0.063997,
+        0.063997
+       ],
+       "latencyOffsetNsec": 0,
+       "iec958Codecs": [
+        "PCM",
+        "AC3",
+        "EAC3"
+       ]
+      },
+      "devices": [
+       9,
+       10
+      ],
+      "profile": 4,
+      "save": false
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": 50,
+  "type": "PipeWire:Interface:Node",
+  "info": {
+   "props": {
+    "media.class": "Audio/Sink",
+    "node.name": "alsa_output.pci-0000_00_1f.3.hdmi-stereo",
+    "node.description": "Built-in Audio Digital Stereo (HDMI) [TCL SMART TV]",
+    "node.nick": "TCL SMART TV",
+    "device.id": 42
+   }
+  }
+ }
+]

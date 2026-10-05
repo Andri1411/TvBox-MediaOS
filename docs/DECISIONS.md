@@ -1103,3 +1103,28 @@ one doesn't redirect). The internal name stays `tvbox`: package names,
 paths, services and the `[tvbox]` repository are unchanged, because pacman
 package names must be lowercase and renaming them on an installed box would
 need a migration for no visible gain.
+
+### On the real hardware: YouTube at 720p, no sound
+
+First boot on the real board (Alder Lake, TCL TV at 3840×2160, 30 Hz over
+HDMI):
+
+- **YouTube offered at most 720p.** Not the decoder: Chromium reports VP9
+  and AV1 at 4K as supported, smooth and power efficient (VA-API works).
+  YouTube decides from the user agent which qualities a device gets.
+  Measured on the box with the same videos: the webOS, Tizen, Android TV
+  (Cobalt) and PS5 user agents all stop at 720p; the **PS4** one ("Leanback
+  Shell") gets 2160p60, and played it with VP9 in hardware, 0 frames
+  dropped in 40 s. The TV interface, sign-in, d-pad, OK, play/pause and
+  Back all work the same with it. The `tv` user agent is now the PS4's.
+- **No sound:** PipeWire chose the board's analog output (profile priority
+  6500) over HDMI (5900), although the TV was connected; and the Audio
+  output menu only listed existing sinks, so HDMI couldn't even be picked
+  (a card plays through one profile at a time). Now the menu lists each
+  connector of a sound card ("TCL SMART TV (HDMI)", "Speakers (analog)",
+  named after what the TV reports) plus other sinks (Bluetooth), and
+  choosing one switches the card's profile. When a TV is connected to HDMI
+  while the card plays through analog, the hub switches to HDMI by itself,
+  unless the analog output was chosen in the menu (remembered in
+  `~/.local/share/tvbox/audio-analog`). Tested against the box's own
+  `pw-dump`, and QEMU's one-profile card.

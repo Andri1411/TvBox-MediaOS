@@ -16,7 +16,9 @@ function tiles() {
     badge: s.state === 'running' ? 'running' : s.state === 'starting' ? 'starting…' : '',
     ok: () => send('launch', { id: s.id }),
   }));
-  return [...services, { name: 'Settings', ok: () => push('main') }];
+  const updates = state.update?.status === 'available' ? state.update.updates.length : 0;
+  return [...services, { name: 'Settings', badge: updates ? `${updates} update${updates === 1 ? '' : 's'}` : '',
+                         ok: () => push('main') }];
 }
 
 const VIEWS = {
@@ -131,7 +133,7 @@ const VIEWS = {
     const items = [];
     if (u.status === 'available') {
       items.push({ label: `Install ${u.updates.length} update${u.updates.length === 1 ? '' : 's'}`,
-        value: u.download_size ? `${(u.download_size / 1e6).toFixed(0)} MB` : '', ok: () => send('update_apply') });
+        value: downloadSize(u.download_size), ok: () => send('update_apply') });
       for (const p of u.updates.slice(0, 7)) items.push({ label: p.name, value: `${p.old} → ${p.new}`, disabled: true });
       if (u.updates.length > 7) items.push({ label: `and ${u.updates.length - 7} more`, disabled: true });
     } else if (u.status === 'done' && u.reboot_for?.length) {
@@ -181,7 +183,9 @@ const VIEWS = {
     };
   },
   about: () => ({ title: 'About', items: [],
-    about: { Version: `tvbox ${state.version ?? ''}`, Name: state.hostname, Address: state.address || 'not connected',
+    about: { Version: `tvbox ${state.version ?? ''}`, Name: state.mdns_name || state.hostname,
+             Address: state.address || 'not connected',
+             'Phone remote': state.address ? `http://${state.mdns_name || state.address}:8080` : '—',
              Kernel: state.kernel } }),
 };
 
@@ -253,8 +257,13 @@ function updateLog(u) {
   if (u.status === 'available') {
     return `Nothing changes until you choose Install. A snapshot is taken first.${u.reboot_for?.length ? ' A restart is needed afterwards.' : ''}`;
   }
-  if (u.status === 'done') return u.reboot_for?.length ? `Installed. Restart to use the new ${u.reboot_for.slice(0, 3).join(', ')}.` : 'Installed.';
+  if (u.status === 'done') return u.reboot_for?.length ? 'Installed. Restart the box to finish the update.' : 'Installed.';
   return 'Updates are never installed automatically.';
+}
+
+function downloadSize(bytes) {
+  if (!bytes) return '';
+  return bytes >= 1e6 ? `${(bytes / 1e6).toFixed(0)} MB` : `${Math.max(1, Math.round(bytes / 1e3))} kB`;
 }
 
 function snapshotTime(date) {
@@ -263,6 +272,7 @@ function snapshotTime(date) {
 
 function snapshotLabel(s) {
   const d = s.description ?? '';
+  if (d === 'fresh install') return 'as installed';
   return d.startsWith('pacman') ? 'before an update' : d.slice(0, 40);
 }
 

@@ -103,8 +103,9 @@ right-clicks and the right stick scrolls. Turn it off the same way.
 
 ## Updates
 
-Updates are never installed by themselves. Settings → **Updates** →
-**Check for updates** shows what would change. **Install** installs it; a
+Updates are never installed by themselves. The box looks for them once a
+day; when there are some, the Settings tile says so. Settings → **Updates**
+shows what would change (**Check for updates** looks again right away). **Install** installs it; a
 backup (snapshot) is taken first. When it says a restart is needed, choose
 **Reboot now**.
 

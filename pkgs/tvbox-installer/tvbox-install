@@ -139,15 +139,22 @@ setup_network() {
 }
 
 ask_ssh() {
-    local user keys
-    user=$(d --title "Remote maintenance (optional)" --inputbox \
-        "SSH is enabled with key-only login as root.\nEnter a GitHub username to import its public keys,\nor leave empty to add keys later from the phone settings." 11 64) || return 0
-    [[ -n $user ]] || return 0
-    if keys=$(curl -fsS --max-time 10 "https://github.com/$user.keys") && [[ -n $keys ]]; then
-        SSH_KEYS+="$keys"$'\n'
-    else
-        d --msgbox "No keys found for \"$user\". You can add keys later." 7 56 || true
-    fi
+    local answer keys
+    while :; do
+        answer=$(d --title "Remote maintenance (optional)" --inputbox \
+            "SSH lets you log in as root from another computer, with a key only.\nThis is the only way to add a key: it can't be done from the TV or phone later.\n\nEnter a GitHub username (its public keys are imported)\nor paste a public key (ssh-ed25519 ...), or leave empty for no SSH." 14 74) || return 0
+        answer=${answer#"${answer%%[![:space:]]*}"}; answer=${answer%"${answer##*[![:space:]]}"}
+        [[ -n $answer ]] || return 0
+        if [[ $answer =~ ^(ssh-(ed25519|rsa)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)\ [A-Za-z0-9+/=]+ ]]; then
+            SSH_KEYS+="$answer"$'\n'
+            return 0
+        elif [[ $answer =~ ^[A-Za-z0-9-]{1,39}$ ]] && keys=$(curl -fsS --max-time 10 "https://github.com/$answer.keys") && [[ -n $keys ]]; then
+            SSH_KEYS+="$keys"$'\n'
+            d --msgbox "Imported $(grep -c . <<<"$keys") key(s) from GitHub user \"$answer\"." 7 60 || true
+            return 0
+        fi
+        d --yesno "\"$answer\" is neither a public key nor a GitHub user with keys\n(add one at github.com/settings/keys).\n\nTry again?" 9 70 || return 0
+    done
 }
 
 confirm() {
@@ -241,6 +248,12 @@ install_packages() {
 
 chr() { run arch-chroot "$MNT" "$@"; }
 
+progress() {  # progress <percent> <what>: a progress bar on screen (interactive only)
+    ((AUTO)) && return 0
+    printf 'XXX\n%s\n%s\n\nDetails are written to %s.\nXXX\n' "$1" "$2" "$LOG" \
+        | dialog --backtitle "$TITLE" --title "Installing" --gauge "" 10 70 0 2>/dev/null || true
+}
+
 configure() {
     log "configuring"
     genfstab -U "$MNT" | sed 's/subvolid=[0-9]*,//; s/,subvolid=[0-9]*//' > "$MNT/etc/fstab"
@@ -318,6 +331,8 @@ END
            "$MNT/etc/default/grub-btrfs/config"
     chr mkinitcpio -P
     chr "/usr/share/libalpm/scripts/$NAME-grub-update"
+    # A known-good starting point: Settings → Snapshots can always go back to it.
+    run arch-chroot "$MNT" snapper --no-dbus -c root create -d "fresh install"
 }
 
 finish() {
@@ -349,9 +364,15 @@ main() {
         confirm
     fi
     serial "START"
+    # Kernel messages would scribble over the screen while it installs.
+    dmesg -n 1 2>/dev/null || true
+    progress 5 "Preparing the disk"
     partition
+    progress 15 "Installing packages (this takes a while)"
     install_packages
+    progress 80 "Setting up the system"
     configure
+    progress 100 "Done"
     finish
 }
 

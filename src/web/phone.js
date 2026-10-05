@@ -108,7 +108,7 @@ function renderSettings() {
 function renderUpdates() {
   const u = state.update ?? {};
   const text = { checking: 'Checking…', applying: 'Installing…', none: 'Everything is up to date.',
-    available: `${u.updates?.length} updates${u.download_size ? `, ${(u.download_size / 1e6).toFixed(0)} MB` : ''}.${u.reboot_for?.length ? ' A restart is needed afterwards.' : ''}`,
+    available: `${u.updates?.length} updates${u.download_size ? `, ${u.download_size >= 1e6 ? `${(u.download_size / 1e6).toFixed(0)} MB` : `${Math.max(1, Math.round(u.download_size / 1e3))} kB`}` : ''}.${u.reboot_for?.length ? ' A restart is needed afterwards.' : ''}`,
     done: u.reboot_for?.length ? 'Installed. Restart to finish.' : 'Installed.',
     error: `Failed: ${u.error}` }[u.status] ?? 'Updates are never installed automatically.';
   $('update-status').textContent = text;
@@ -267,7 +267,9 @@ function showTab(name) {
   if (name === 'bindings') loadBindings();
   if (name === 'settings') { send('refresh'); send('snapshots'); }
 }
-$('tabs').addEventListener('click', (event) => { if (event.target.dataset.tab) showTab(event.target.dataset.tab); });
+$('tabs').addEventListener('click', (event) => {
+  if (event.target.dataset.tab) { showTab(event.target.dataset.tab); history.replaceState(null, '', `#${event.target.dataset.tab}`); }
+});
 
 function render() {
   const current = state.services?.find((s) => s.focused);
@@ -279,6 +281,11 @@ function render() {
   renderUpdates();
   renderWifi();
   renderBluetooth();
+}
+
+// /phone#settings etc. opens that tab (bookmarkable).
+if (['remote', 'apps', 'settings', 'health', 'bindings'].includes(location.hash.slice(1))) {
+  setTimeout(() => showTab(location.hash.slice(1)), 0);
 }
 
 connect('phone', (msg) => {

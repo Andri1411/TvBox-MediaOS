@@ -15,6 +15,8 @@ log = setup_logging("hub")
 
 SOCKET = Path(f"/run/{NAME}/updater.sock")
 LOG_LINES = 12
+CHECK_FIRST_S = 30 * 60          # first automatic check half an hour after start
+CHECK_EVERY_S = 24 * 3600
 
 
 class UpdaterError(Exception):
@@ -101,6 +103,19 @@ class Updates:
         except (UpdaterError, TimeoutError, ValueError) as err:
             self.status, self.error = "error", str(err)
         self.hub.push_state()
+
+    async def daily_check(self) -> None:
+        """Look for updates once a day so the home screen can say so.
+        Only looks: installing always waits for the user."""
+        await asyncio.sleep(CHECK_FIRST_S)
+        while True:
+            if self.status in ("idle", "none", "available", "error") and not self.busy():
+                previous = self.status
+                await self.check()
+                if self.status == "error" and previous != "error":
+                    self.status, self.error = previous, ""   # quiet: no network now, try tomorrow
+                    self.hub.push_state()
+            await asyncio.sleep(CHECK_EVERY_S)
 
     async def apply(self) -> None:
         self.status, self.error, self.log = "applying", "", []

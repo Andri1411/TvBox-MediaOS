@@ -1003,3 +1003,43 @@ Cause: `make pages` depended on `make repo`, which rebuilt every package a
 second time without `CONTAINER=docker`; that rebuild picked podman, which
 could not remove the files the docker build had left. `make pages` now only
 stages the repository that the previous CI step built.
+
+### QA pass before the hardware
+Done in a fresh VM with the interactive installer (as on the real board),
+the published GitHub Pages repository, and the full test suites.
+
+Works end to end: the interactive install (disk, network, SSH, confirm);
+first boot to the home screen; **a real over-the-air update** from
+GitHub Pages (signed `[tvbox]` packages r47 → r49 found, installed,
+restart offered, the box comes back on r49).
+
+Found and fixed:
+- **SSH keys "later from the phone" didn't exist** (the installer promised
+  it). Decided with the owner: keys are added at installation only, so the
+  `tv` user (which runs the browsers) can never grant itself root. The
+  installer now says so plainly and accepts a GitHub username *or* a pasted
+  public key, and retries when neither works.
+- **No progress during installation:** the confirmation dialog stayed on
+  screen with kernel messages scribbling over it for ten minutes. Now a
+  progress bar; kernel console messages are muted while installing.
+- **"0 MB" for small updates** (now kB), and the restart notice listed
+  package names; now "Restart the box to finish the update".
+- **About** now shows the box's network name and the phone remote address.
+- **The ISO built in CI failed** (Actions → *Run workflow* with the ISO):
+  with signed packages, the ISO build's pacman didn't know the signing key
+  for its own just-built repository. That repository is now used with
+  `SigLevel = Never` while building; the copy on the stick stays signed and
+  the installer checks it.
+
+Decided with the owner: the box now **looks for updates once a day** (half
+an hour after start, then every 24 hours) and shows a badge on the Settings
+tile. It never installs anything by itself. If the check fails (no network),
+it stays quiet and tries again the next day.
+
+Notes for installing on the real board:
+- **Secure Boot must be off**: neither the ISO's boot loader nor the
+  installed GRUB is signed.
+- The installer needs a **USB keyboard**; afterwards it isn't needed.
+- The owner's GitHub account has no public SSH keys yet: add one at
+  github.com/settings/keys before installing, or paste one, or there will be
+  no SSH access.

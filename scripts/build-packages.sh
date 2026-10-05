@@ -20,7 +20,15 @@ export TVBOX_PKGVER; TVBOX_PKGVER=$(pkg_version)
 export TVBOX_SRC="$ROOT/src"
 mkdir -p "$SRCDEST" "$BUILDDIR"
 
-makepkg_args=(--noconfirm --cleanbuild --force)
+# Source downloads (AUR packages' tarballs from GitHub) retry on any error:
+# GitHub sometimes answers CI runners with a 403 for a moment, which curl's
+# default --retry doesn't cover.
+{
+    cat /etc/makepkg.conf
+    echo "DLAGENTS=('https::/usr/bin/curl -qgb \"\" -fLC - --retry 5 --retry-delay 10 --retry-all-errors -o %o %u'"
+    echo "          'http::/usr/bin/curl -qgb \"\" -fLC - --retry 5 --retry-delay 10 --retry-all-errors -o %o %u')"
+} > "$work/makepkg.conf"
+makepkg_args=(--config "$work/makepkg.conf" --noconfirm --cleanbuild --force)
 [[ -n ${SIGN_KEY:-} ]] && makepkg_args+=(--sign --key "$SIGN_KEY")
 
 local_db="$out/_buildlocal.db.tar.gz"

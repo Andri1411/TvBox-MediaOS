@@ -267,7 +267,9 @@ function showTab(name) {
   if (name === 'bindings') loadBindings();
   if (name === 'settings') { send('refresh'); send('snapshots'); }
 }
-$('tabs').addEventListener('click', (event) => { if (event.target.dataset.tab) showTab(event.target.dataset.tab); });
+$('tabs').addEventListener('click', (event) => {
+  if (event.target.dataset.tab) { showTab(event.target.dataset.tab); history.replaceState(null, '', `#${event.target.dataset.tab}`); }
+});
 
 function render() {
   const current = state.services?.find((s) => s.focused);
@@ -279,6 +281,11 @@ function render() {
   renderUpdates();
   renderWifi();
   renderBluetooth();
+}
+
+// /phone#settings etc. opens that tab (bookmarkable).
+if (['remote', 'apps', 'settings', 'health', 'bindings'].includes(location.hash.slice(1))) {
+  setTimeout(() => showTab(location.hash.slice(1)), 0);
 }
 
 connect('phone', (msg) => {

@@ -1043,3 +1043,51 @@ Notes for installing on the real board:
 - The owner's GitHub account has no public SSH keys yet: add one at
   github.com/settings/keys before installing, or paste one, or there will be
   no SSH access.
+
+### Security pass
+
+Reviewed: what listens on the network, the hub's access rules, the web
+pages, the root updater, the Bluetooth agent, SSH, polkit and the install
+image. On an installed box only three things listen: sshd (port 22, keys
+only, no passwords), the hub (port 8080) and Avahi (mDNS, 5353/udp). The
+updater's socket is local, root:tv 660. Chromium's DevTools port is on
+loopback only. The `tv` user has no sudo; its groups are audio, input and
+video.
+
+Fixed:
+- **Any Bluetooth device in range could pair.** The hub is BlueZ's
+  "NoInputNoOutput" agent and accepted every request, so anything nearby
+  could pair itself, for example as a keyboard, and type into the box
+  (including Ctrl+Alt+Return, the maintenance terminal). Now the agent
+  rejects everything unless the user started a search or a pairing on the
+  TV or the phone in the last three minutes, the adapter is only pairable
+  during that window, and it is never discoverable. Paired devices are
+  trusted, so controllers and headphones still reconnect by themselves.
+- **HTML escaping** in the web pages now also escapes quotes, so a Wi-Fi or
+  Bluetooth name (chosen by whoever is nearby) can't break out of an
+  attribute. All such names already went through the escaping; this makes
+  it safe in attributes too.
+- The installer stick's SSH server now says `PermitEmptyPasswords no`
+  explicitly. (It was already OpenSSH's default, so the stick's empty root
+  password never allowed an SSH login; checked.)
+
+Checked and left as they are (accepted risks):
+- **The phone remote uses plain HTTP on the LAN.** Someone who can watch
+  the home network's traffic could copy a phone's cookie. There is no way
+  to get a certificate browsers trust for `tv.local`; a paired phone can be
+  removed under Settings → Pair a phone. The pairing code is one-time and
+  expires after five minutes; device tokens are stored hashed (mode 600).
+- **Web pages in the box's own browsers can reach 127.0.0.1:8080.** Every
+  request with a foreign Origin is refused, and a no-Origin GET can't read
+  the answer or change anything (all GET handlers are read-only). DNS
+  rebinding is refused by the Host check.
+- **A paired phone is fully trusted:** through the bindings editor and the
+  text field it could reach the maintenance terminal and get a shell as
+  `tv` (not root). Pairing needs the TV's QR code, i.e. someone in the room.
+- **Physical access** (a USB keyboard, or booting another system) gives
+  full access; the disk isn't encrypted and Secure Boot is off. That is the
+  nature of an appliance without a login.
+- The Widevine download is checked against the SHA-256 in Google's apt
+  index fetched over HTTPS, not against Google's GPG signature.
+- Wi-Fi passwords are passed to `nmcli` on its command line (visible to
+  local processes for a moment); only root and `tv` exist on the box.

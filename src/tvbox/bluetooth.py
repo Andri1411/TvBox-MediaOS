@@ -5,6 +5,11 @@ The hub registers itself as BlueZ's pairing agent with "NoInputNoOutput":
 controllers and audio devices pair with "just works", and there is nobody
 at a keyboard to type a PIN anyway. Bluetooth audio then shows up as an
 audio output (PipeWire) like any other.
+
+The agent accepts nothing unless the user started pairing on the TV or the
+phone in the last few minutes, and the adapter is only pairable during that
+window: otherwise any device in range could pair itself, e.g. as a keyboard
+typing into the box.
 """
 # No "from __future__ import annotations" here: dbus-fast reads the D-Bus
 # signatures from the method annotations ("o", "s", ...) at runtime.
@@ -24,6 +29,7 @@ except ImportError:                         # dev hosts without dbus-fast
 BLUEZ = "org.bluez"
 AGENT_PATH = "/org/tvbox/agent"
 SCAN_S = 25
+PAIRING_WINDOW_S = 180         # how long after the user starts pairing requests are accepted
 KINDS = {"input-gaming": "controller", "audio-headphones": "headphones", "audio-headset": "headphones",
          "audio-card": "speaker", "input-keyboard": "keyboard", "input-mouse": "mouse",
          "phone": "phone", "computer": "computer"}
@@ -43,10 +49,17 @@ def describe(path: str, props: dict) -> dict:
 
 if MessageBus:
     class Agent(ServiceInterface):
-        """org.bluez.Agent1 that accepts every request (NoInputNoOutput)."""
+        """org.bluez.Agent1 (NoInputNoOutput) that accepts requests only while
+        the user is pairing (`allowed()`), and rejects them otherwise."""
 
-        def __init__(self):
+        def __init__(self, allowed):
             super().__init__("org.bluez.Agent1")
+            self.allowed = allowed
+
+        def _check(self, what: str):
+            if not self.allowed():
+                log.warning("bluetooth: rejected %s (not pairing now)", what)
+                raise DBusError("org.bluez.Error.Rejected", "pairing is not open on the TV")
 
         @method()
         def Release(self):  # noqa: N802 (D-Bus names)
@@ -54,6 +67,7 @@ if MessageBus:
 
         @method()
         def RequestPinCode(self, device: "o") -> "s":  # noqa: N802,F821
+            self._check("RequestPinCode")
             return "0000"
 
         @method()
@@ -62,6 +76,7 @@ if MessageBus:
 
         @method()
         def RequestPasskey(self, device: "o") -> "u":  # noqa: N802,F821
+            self._check("RequestPasskey")
             return 0
 
         @method()
@@ -70,15 +85,15 @@ if MessageBus:
 
         @method()
         def RequestConfirmation(self, device: "o", passkey: "u"):  # noqa: N802,F821
-            pass
+            self._check("RequestConfirmation")
 
         @method()
         def RequestAuthorization(self, device: "o"):  # noqa: N802,F821
-            pass
+            self._check("RequestAuthorization")
 
         @method()
         def AuthorizeService(self, device: "o", uuid: "s"):  # noqa: N802,F821
-            pass
+            self._check("AuthorizeService")
 
         @method()
         def Cancel(self):  # noqa: N802
@@ -94,6 +109,30 @@ class Bluetooth:
         self.scanning = False
         self.busy: str | None = None          # path of a device being paired/connected
         self.message = ""
+        self.pairing_until = 0.0              # monotonic time until which pairing is open
+
+    def pairing_open(self) -> bool:
+        return asyncio.get_running_loop().time() < self.pairing_until
+
+    async def open_pairing(self) -> None:
+        """The user is pairing: accept requests (and be pairable) for a while."""
+        self.pairing_until = asyncio.get_running_loop().time() + PAIRING_WINDOW_S
+        await self._set_pairable(True)
+        self.hub.spawn(self._close_pairing_later())
+
+    async def _close_pairing_later(self) -> None:
+        await asyncio.sleep(PAIRING_WINDOW_S + 1)
+        if not self.pairing_open():
+            await self._set_pairable(False)
+
+    async def _set_pairable(self, on: bool) -> None:
+        if not self.adapter:
+            return
+        try:
+            props = await self._interface(self.adapter, "org.freedesktop.DBus.Properties")
+            await props.call_set("org.bluez.Adapter1", "Pairable", Variant("b", on))
+        except DBusError as err:
+            log.warning("bluetooth: pairable=%s: %s", on, err.text)
 
     def state(self) -> dict:
         return {"available": self.adapter is not None, "devices": self.devices, "scanning": self.scanning,
@@ -105,7 +144,7 @@ class Bluetooth:
             return
         try:
             self.bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-            self.bus.export(AGENT_PATH, Agent())
+            self.bus.export(AGENT_PATH, Agent(self.pairing_open))
             manager = await self._interface("/org/bluez", "org.bluez.AgentManager1")
             await manager.call_register_agent(AGENT_PATH, "NoInputNoOutput")
             await manager.call_request_default_agent(AGENT_PATH)
@@ -116,6 +155,8 @@ class Bluetooth:
         if self.adapter:
             adapter = await self._interface(self.adapter, "org.freedesktop.DBus.Properties")
             await adapter.call_set("org.bluez.Adapter1", "Powered", Variant("b", True))
+            await adapter.call_set("org.bluez.Adapter1", "Discoverable", Variant("b", False))
+            await self._set_pairable(False)
 
     async def _interface(self, path: str, name: str):
         introspection = await self.bus.introspect(BLUEZ, path)
@@ -149,6 +190,7 @@ class Bluetooth:
         if not self.adapter or self.scanning:
             return
         self.scanning, self.message = True, ""
+        await self.open_pairing()
         self.hub.push_state()
         adapter = await self._interface(self.adapter, "org.bluez.Adapter1")
         try:
@@ -169,6 +211,8 @@ class Bluetooth:
     async def action(self, path: str, what: str) -> None:
         """pair (pair, trust, connect) | connect | disconnect | remove."""
         device = self.device(path)
+        if what in ("pair", "connect"):
+            await self.open_pairing()
         self.busy, self.message = path, ""
         self.hub.push_state()
         try:

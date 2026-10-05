@@ -1,0 +1,42 @@
+#!/bin/sh
+# /etc/grub.d/09_tvbox - tvbox boot fallback (tvbox-updater). Runs before the
+# menu: picks which entry boots, from variables in an environment block on
+# the EFI partition (GRUB can't write to btrfs).
+#   tvbox_once=<n>       boot snapshot n this one time (Settings → Snapshots)
+#   tvbox_fallback=<n>   the snapshot taken before the last update
+#   tvbox_tries=1|2      boots that have not yet been confirmed healthy
+#                        (tvbox-boot-ok clears it once the session works)
+# After two boots in a row that never got healthy, the fallback snapshot
+# boots automatically.
+set -e
+esp_uuid=$(grub-probe --target=fs_uuid /efi 2>/dev/null) || exit 0
+cat <<EOF
+### tvbox boot fallback ###
+insmod fat
+search --no-floppy --fs-uuid --set=tvbox_esp $esp_uuid
+set tvbox_env="(\$tvbox_esp)/tvbox/grubenv"
+if [ -f "\$tvbox_env" ]; then
+  load_env -f "\$tvbox_env" tvbox_tries tvbox_fallback tvbox_once
+  if [ -n "\$tvbox_once" ]; then
+    set tvbox_snapshot="\$tvbox_once"
+    set tvbox_once=
+    save_env -f "\$tvbox_env" tvbox_once
+    set default=tvbox-snapshot
+    set timeout=1
+  elif [ "\$tvbox_tries" = "2" ]; then
+    set tvbox_tries=
+    save_env -f "\$tvbox_env" tvbox_tries
+    if [ -n "\$tvbox_fallback" ]; then
+      set tvbox_snapshot="\$tvbox_fallback"
+      set default=tvbox-snapshot
+      set timeout=10
+    fi
+  elif [ "\$tvbox_tries" = "1" ]; then
+    set tvbox_tries=2
+    save_env -f "\$tvbox_env" tvbox_tries
+  else
+    set tvbox_tries=1
+    save_env -f "\$tvbox_env" tvbox_tries
+  fi
+fi
+EOF

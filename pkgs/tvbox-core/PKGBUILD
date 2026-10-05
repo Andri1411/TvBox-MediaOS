@@ -10,6 +10,8 @@ depends=(
     tvbox-session tvbox-release python python-evdev python-aiohttp
     # QR code for pairing the phone remote
     python-qrcode
+    # Bluetooth pairing (BlueZ over D-Bus); Wi-Fi through nmcli
+    python-dbus-fast bluez networkmanager
     # shell: GTK4 layer-shell window showing the web UI
     gtk4 gtk4-layer-shell webkitgtk-6.0 python-gobject python-cairo noto-fonts
     # on-screen keyboard: types text through sway's virtual-keyboard protocol

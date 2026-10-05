@@ -26,9 +26,11 @@ from pathlib import Path
 
 from aiohttp import WSMsgType, web
 
-from . import NAME, audio, bindings, health, services, sway
+from . import NAME, audio, bindings, health, network, services, sway
+from .bluetooth import Bluetooth
 from .apps import HOME, AppManager
 from .auth import COOKIE, DeviceStore, classify, device_name
+from .updates import Updates, UpdaterError
 from .util import (IN_CLOSE_WRITE, IN_CREATE, IN_DELETE, IN_MOVED_FROM, IN_MOVED_TO, Inotify,
                    input_socket, runtime_dir, sd_notify, setup_logging, watchdog_interval)
 
@@ -109,6 +111,10 @@ class Hub:
         self._input: asyncio.StreamWriter | None = None
         self._clients: dict[web.WebSocketResponse, str] = {}    # -> role: overlay | home | phone
         self.devices = DeviceStore()
+        self.updates = Updates(self)
+        self.bluetooth = Bluetooth(self)
+        self.network = {"wifi_device": None, "ssid": None, "ethernet": False, "known": [],
+                        "networks": [], "scanning": False, "connecting": None, "message": ""}
         self._volume_pending = 0
         self._volume_task: asyncio.Task | None = None
         self._tasks: set[asyncio.Task] = set()
@@ -121,7 +127,8 @@ class Hub:
                 "display_scale": display_scale(), "kernel": os.uname().release,
                 "volume": self.volume, "muted": self.muted, "sinks": self.sinks,
                 "config_errors": self.config_errors, "input_connected": self.input_connected,
-                "devices": self.devices.listing(),
+                "devices": self.devices.listing(), "update": self.updates.state(),
+                "network": self.network, "bluetooth": self.bluetooth.state(),
                 "version": release_version(), "hostname": socket.gethostname(),
                 "address": lan_address()}
 
@@ -145,8 +152,14 @@ class Hub:
     def spawn(self, coro) -> asyncio.Task:
         task = asyncio.get_running_loop().create_task(coro)
         self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
+        task.add_done_callback(self._task_done)
         return task
+
+    def _task_done(self, task: asyncio.Task) -> None:
+        self._tasks.discard(task)
+        if not task.cancelled() and task.exception():
+            log.error("background task %s failed", task.get_coro().__qualname__,
+                      exc_info=task.exception())
 
     # -- link to inputd -----------------------------------------------------
     def input_send(self, **cmd) -> None:
@@ -259,6 +272,54 @@ class Hub:
         else:
             self.volume = None
 
+    async def wifi_scan(self) -> None:
+        try:
+            self.network["networks"] = await network.scan()
+        finally:
+            self.network["scanning"] = False
+            await self.refresh_network()
+
+    async def wifi_connect(self, ssid: str, password: str | None) -> None:
+        try:
+            error = await network.connect(ssid, password)
+        finally:
+            self.network["connecting"] = None
+        self.network["message"] = error or f"Connected to {ssid}"
+        self.osd(kind="message", text=self.network["message"])
+        await self.refresh_network()
+        if not error:
+            self.network["networks"] = await network.scan()
+            self.push_state()
+
+    async def display_watch(self) -> None:
+        """The TV was switched off and on (HDMI hotplug) or the output changed:
+        make sure it is on, re-apply the scale, and look for the TV's audio
+        output again. Turning an output on right after it reappears failed
+        once in testing ("Backend commit failed"), hence the retries."""
+        handled = 0.0
+        while True:
+            try:
+                async for _event in sway.events("output"):
+                    # What we do here makes sway report the output again: don't loop.
+                    if asyncio.get_running_loop().time() - handled < 5:
+                        continue
+                    await asyncio.sleep(1)
+                    for attempt in range(3):
+                        if await self.sway_command("output * power on"):
+                            break
+                        await asyncio.sleep(1 + attempt)
+                    await audio.run("tvbox-display", "apply", env={"SWAYSOCK": sway.socket_path() or ""})
+                    await self.refresh_audio()
+                    self.push_state()
+                    handled = asyncio.get_running_loop().time()
+            except (ConnectionError, OSError) as err:
+                log.debug("sway output events: %s", err)
+            await asyncio.sleep(2)
+
+    async def refresh_network(self) -> None:
+        self.network.update(await network.status())
+        self.push_state()
+
     async def _apply_volume(self) -> None:
         # Held triggers arrive faster than wpctl runs: apply what piled up.
         while self._volume_pending:
@@ -325,6 +386,28 @@ class Hub:
             volume = await audio.get_volume()
             self.volume, self.muted = volume if volume else (None, False)
             self.volume_changed()
+        elif cmd == "update_check":
+            self.updates.start(self.updates.check())
+        elif cmd == "update_apply":
+            self.updates.start(self.updates.apply())
+        elif cmd == "snapshots":
+            await self.updates.refresh_snapshots()
+        elif cmd in ("snapshot_boot_once", "snapshot_rollback"):
+            number = int(msg["number"])
+            if self.updates.busy():
+                raise ValueError("an update is in progress")
+            try:
+                if cmd == "snapshot_boot_once":
+                    await self.updates.boot_once(number)
+                else:
+                    self.osd(kind="message", text=f"Rolling back to snapshot {number}…")
+                    await self.updates.rollback(number)
+            except UpdaterError as err:
+                raise ValueError(str(err)) from err
+            await self.close_overlay()
+            self.osd(kind="message", text="Restarting…")
+            await self.apps.stop_all()
+            await audio.run("systemctl", "reboot")
         elif cmd == "revoke_device":
             if not self.devices.revoke(str(msg["id"])):
                 raise ValueError("no such device")
@@ -354,8 +437,33 @@ class Hub:
             elif not msg.get("focused") and self.overlay == "keyboard" and self.keyboard_auto:
                 await self.close_overlay()
         elif cmd == "refresh":                  # a settings screen was opened
-            await asyncio.gather(self.refresh_audio(), self.apps.refresh())
+            await asyncio.gather(self.refresh_audio(), self.apps.refresh(), self.refresh_network(),
+                                 self.bluetooth.refresh())
             self.push_state()
+        elif cmd == "wifi_scan":
+            if not self.network["scanning"]:
+                self.network["scanning"] = True
+                self.push_state()
+                self.spawn(self.wifi_scan())
+        elif cmd == "wifi_connect":
+            ssid, password = str(msg["ssid"]), msg.get("password") or None
+            if not 0 < len(ssid) <= 32 or (password is not None and not 8 <= len(str(password)) <= 63):
+                raise ValueError("a network name, and a password of 8 to 63 characters")
+            if self.network["connecting"]:
+                raise ValueError("already connecting")
+            self.network.update(connecting=ssid, message="")
+            self.push_state()
+            self.spawn(self.wifi_connect(ssid, password))
+        elif cmd == "bt_scan":
+            self.spawn(self.bluetooth.scan())
+        elif cmd in ("bt_pair", "bt_connect", "bt_disconnect", "bt_remove"):
+            if self.bluetooth.busy:
+                raise ValueError("busy with another Bluetooth device")
+            self.bluetooth.device(str(msg["path"]))         # must be a known device
+            self.spawn(self.bluetooth.action(str(msg["path"]), cmd.removeprefix("bt_")))
+        elif cmd == "wifi_forget":
+            await network.forget(str(msg["ssid"]))
+            await self.refresh_network()
         elif cmd in ("home", "settings"):
             await self.close_overlay()
             await self.sway_command(f"workspace {HOME}")
@@ -548,7 +656,11 @@ class Hub:
         return web.json_response({"ok": True, "errors": []})
 
     async def api_health(self, _request: web.Request) -> web.Response:
-        return web.json_response(await health.collect() | {"version": release_version()})
+        report = await health.collect()
+        # Watchdog restarts (from the hub) next to those systemd made.
+        report["restarts"] = sorted(report["restarts"] + self.apps.restarts,
+                                    key=lambda e: e["time"], reverse=True)[:health.RECENT_RESTARTS]
+        return web.json_response(report | {"version": release_version()})
 
     async def index(self, request: web.Request) -> web.Response:
         raise web.HTTPFound("/home" if request[ACCESS] == "tv" else "/phone")
@@ -595,6 +707,10 @@ class Hub:
         self.spawn(self.sway_command("mode default"))   # in case a previous hub died mid-menu
         self.spawn(self.apps.window_watch())
         self.spawn(self.apps.memory_watch())
+        self.spawn(self.apps.watchdog())
+        self.spawn(self.updates.refresh_snapshots())
+        self.spawn(self.bluetooth.start())
+        self.spawn(self.display_watch())
         self.watch_services()
         sd_notify("READY=1")
         log.info("listening on port %d", port)

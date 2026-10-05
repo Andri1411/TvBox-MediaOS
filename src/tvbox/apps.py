@@ -27,6 +27,14 @@ UNIT = f"{NAME}-app@{{}}.service"
 _UNIT_RE = re.compile(rf"{NAME}-app@([^.\s]+)\.service")
 LOW_MEMORY_KB = 1536 * 1024          # stop background apps below this much available memory
 MEMORY_CHECK_S = 60
+# Watchdog for browser services: a page that doesn't answer a DevTools ping
+# this many times in a row (frozen renderer, crashed tab) gets its app
+# restarted. Not before the app has run a while: a starting browser is busy.
+PING_EVERY_S = 10
+PING_TIMEOUT_S = 5
+PING_FAILURES = 2
+START_GRACE_S = 45
+RESTART_LOG = 50
 PAUSE_JS = 'document.querySelectorAll("video, audio").forEach((m) => m.pause())'
 
 
@@ -87,6 +95,8 @@ class AppManager:
         self.errors: list[str] = []
         self.active: dict[str, str] = {}        # id -> "running" | "starting"
         self.last_used: dict[str, float] = {}
+        self.started: dict[str, float] = {}     # id -> when we last (re)started it
+        self.restarts: list[dict] = []          # watchdog restarts, newest first
         self.reload()
 
     # -- services -----------------------------------------------------------
@@ -115,6 +125,10 @@ class AppManager:
             match = _UNIT_RE.fullmatch(fields[0]) if fields else None
             if match and len(fields) >= 4 and fields[2] in ("active", "activating"):
                 active[match.group(1)] = "running" if fields[3] == "running" else "starting"
+        for service_id in active.keys() - self.active.keys():
+            self.started.setdefault(service_id, time.monotonic())   # started outside the hub
+        for service_id in self.active.keys() - active.keys():
+            self.started.pop(service_id, None)
         self.active = active
 
     # -- switching ----------------------------------------------------------
@@ -128,6 +142,7 @@ class AppManager:
         if service.id not in self.active:
             await run("systemctl", "--user", "start", "--no-block", UNIT.format(service.id))
             self.active[service.id] = "starting"
+            self.started[service.id] = time.monotonic()
             self.hub.osd(kind="message", text=f"Starting {service.name}")
             self.hub.spawn(self.free_memory(keep=service.id))
             if service.nav:
@@ -146,6 +161,7 @@ class AppManager:
         if not service:
             return False
         await run("systemctl", "--user", "restart", "--no-block", UNIT.format(service.id))
+        self.started[service.id] = time.monotonic()
         return True
 
     async def focus_changed(self, old: str | None, new: str | None) -> None:
@@ -159,7 +175,14 @@ class AppManager:
 
     async def devtools(self, service: Service, method: str, params: dict) -> list[dict] | None:
         """Send one DevTools command to every page of a browser service; the
-        results, or None if the browser could not be reached."""
+        results, or None if the browser could not be reached in time."""
+        try:
+            return await asyncio.wait_for(self._devtools(service, method, params), 6)
+        except asyncio.TimeoutError:
+            log.debug("devtools %s %s: no answer", service.id, method)
+            return None
+
+    async def _devtools(self, service: Service, method: str, params: dict) -> list[dict] | None:
         port = devtools_port(service.id) if service.kind == "browser" else None
         if not port:
             return None
@@ -231,6 +254,67 @@ class AppManager:
             await asyncio.sleep(2)
         await self.refresh()
 
+    async def ping(self, service: Service) -> bool:
+        """Does the service's page still run JavaScript? A frozen renderer
+        doesn't answer; a crashed tab answers with an error."""
+        # (aiohttp's session timeout does not cover receiving on a WebSocket:
+        # without this, a ping to a frozen page would wait forever.)
+        try:
+            return await asyncio.wait_for(self._ping(service), PING_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            return False
+
+    async def _ping(self, service: Service) -> bool:
+        port = devtools_port(service.id)
+        if not port:
+            return False
+        try:
+            timeout = aiohttp.ClientTimeout(total=PING_TIMEOUT_S)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(f"http://127.0.0.1:{port}/json") as reply:
+                    pages = [p for p in await reply.json() if p.get("type") == "page"]
+                if not pages:
+                    return False
+                async with session.ws_connect(pages[0]["webSocketDebuggerUrl"]) as ws:
+                    await ws.send_json({"id": 1, "method": "Runtime.evaluate",
+                                        "params": {"expression": "1 + 1", "returnByValue": True}})
+                    async for message in ws:
+                        data = json.loads(message.data)
+                        if data.get("id") == 1:
+                            return data.get("result", {}).get("result", {}).get("value") == 2
+        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError, KeyError):
+            pass
+        return False
+
+    async def watchdog(self) -> None:
+        """Restart browser services whose page stopped responding. (A process
+        that exits is restarted by systemd; see tvbox-app@.service.)"""
+        failures: dict[str, int] = {}
+        while True:
+            await asyncio.sleep(PING_EVERY_S)
+            now = time.monotonic()
+            for service_id, state in list(self.active.items()):
+                service = self.get(service_id)
+                if (not service or service.kind != "browser" or state != "running"
+                        or now - self.started.get(service_id, 0) < START_GRACE_S):
+                    failures.pop(service_id, None)
+                    continue
+                if await self.ping(service):
+                    failures.pop(service_id, None)
+                    continue
+                failures[service_id] = failures.get(service_id, 0) + 1
+                if failures[service_id] >= PING_FAILURES:
+                    failures.pop(service_id)
+                    await self.watchdog_restart(service, "stopped responding")
+
+    async def watchdog_restart(self, service: Service, reason: str) -> None:
+        log.warning("watchdog: %s %s, restarting it", service.id, reason)
+        self.restarts.insert(0, {"unit": UNIT.format(service.id), "time": time.time(),
+                                 "message": f"watchdog: {reason}, restarted"})
+        del self.restarts[RESTART_LOG:]
+        await self.restart(service.id)
+        self.hub.osd(kind="message", text=f"{service.name} {reason} and was restarted")
+
     async def memory_watch(self) -> None:
         while True:
             await asyncio.sleep(MEMORY_CHECK_S)
@@ -251,6 +335,7 @@ class AppManager:
                 async for event in sway.events("window"):
                     change, con = event.get("change"), event.get("container") or {}
                     if change == "new":
+                        self.window_opened(con)
                         if await self.place(con):
                             self.hub.push_state()
                     elif change == "close":
@@ -267,6 +352,12 @@ class AppManager:
         await sway.command(f"[con_id={con['id']}] move container to workspace {service_id}")
         self.active[service_id] = "running"
         return True
+
+    def window_opened(self, con: dict) -> None:
+        """A new window of a service means it (re)started: give it the grace time."""
+        service_id = unit_of_pid(con.get("pid") or 0)
+        if service_id:
+            self.started[service_id] = time.monotonic()
 
     async def stop_all(self) -> None:
         await run("systemctl", "--user", "stop", UNIT.format("*"), timeout=20)

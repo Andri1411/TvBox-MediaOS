@@ -1,0 +1,28 @@
+# Root side of updates and snapshots: tvbox-updater (socket-activated, used by
+# the hub), the GRUB boot fallback and the boot health check.
+pkgname=tvbox-updater
+pkgver=${TVBOX_PKGVER:-0.0.0}
+pkgrel=1
+pkgdesc="tvbox updates, snapshots and boot fallback"
+arch=(any)
+license=(GPL-3.0-or-later)
+install=tvbox-updater.install
+depends=(tvbox-core pacman-contrib fakeroot snapper snap-pac grub btrfs-progs curl procps-ng)
+source=(tvbox-updater.socket tvbox-updater.service grub-fallback grub-snapshot-entry
+        tvbox-boot-ok tvbox-boot-ok.service tvbox-boot-ok.timer)
+sha256sums=(SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
+
+package() {
+    local d=$pkgdir
+    printf '%s\n' '#!/usr/bin/python' 'import sys' 'sys.path.insert(0, "/usr/lib/tvbox")' \
+        'from tvbox.updater import main' 'sys.exit(main())' > tvbox-updater
+    install -Dm755 tvbox-updater          "$d/usr/bin/tvbox-updater"
+    install -Dm644 tvbox-updater.socket   "$d/usr/lib/systemd/system/tvbox-updater.socket"
+    install -Dm644 tvbox-updater.service  "$d/usr/lib/systemd/system/tvbox-updater.service"
+    install -Dm755 tvbox-boot-ok          "$d/usr/lib/tvbox/tvbox-boot-ok"
+    install -Dm644 tvbox-boot-ok.service  "$d/usr/lib/systemd/system/tvbox-boot-ok.service"
+    install -Dm644 tvbox-boot-ok.timer    "$d/usr/lib/systemd/system/tvbox-boot-ok.timer"
+    # grub-mkconfig only reads /etc/grub.d.
+    install -Dm755 grub-fallback          "$d/etc/grub.d/09_tvbox"
+    install -Dm755 grub-snapshot-entry    "$d/etc/grub.d/45_tvbox"
+}

@@ -1,0 +1,6 @@
+[Unit]
+Description=tvbox: confirm this boot works (boot fallback)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/tvbox/tvbox-boot-ok

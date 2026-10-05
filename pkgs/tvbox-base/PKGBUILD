@@ -8,7 +8,7 @@ arch=(any)
 license=(GPL-3.0-or-later)
 install=tvbox-base.install
 depends=(
-    tvbox-release tvbox-keyring tvbox-session tvbox-core tvbox-browser
+    tvbox-release tvbox-keyring tvbox-session tvbox-core tvbox-browser tvbox-updater
     # native Jellyfin client (from pkgs/aur.list)
     jellyfin-desktop
     # kernel and boot
@@ -32,9 +32,9 @@ depends=(
 source=(
     journald.conf logind.conf sleep.conf zram-generator.conf sysctl.conf
     mkinitcpio.conf sshd.conf networkmanager.conf snapper-root.conf
-    enabled-units grub-update.hook tvbox-grub-update
+    enabled-units grub-update.hook tvbox-grub-update polkit.rules
 )
-sha256sums=(SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
+sha256sums=(SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
 
 package() {
     local d=$pkgdir
@@ -50,4 +50,5 @@ package() {
     install -Dm644 enabled-units        "$d/usr/share/tvbox/enabled-units"
     install -Dm644 grub-update.hook     "$d/usr/share/libalpm/hooks/90-tvbox-grub-update.hook"
     install -Dm755 tvbox-grub-update    "$d/usr/share/libalpm/scripts/tvbox-grub-update"
+    install -Dm644 polkit.rules         "$d/usr/share/polkit-1/rules.d/50-tvbox.rules"
 }

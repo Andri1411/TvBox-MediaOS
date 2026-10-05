@@ -105,6 +105,87 @@ function renderSettings() {
       <span>${escapeHtml(d.name)} <span class="sub">· paired ${new Date(d.created * 1000).toLocaleDateString()}</span></span>
       <button data-revoke="${escapeHtml(d.id)}">Remove</button></li>`).join('');
 }
+function renderUpdates() {
+  const u = state.update ?? {};
+  const text = { checking: 'Checking…', applying: 'Installing…', none: 'Everything is up to date.',
+    available: `${u.updates?.length} updates${u.download_size ? `, ${(u.download_size / 1e6).toFixed(0)} MB` : ''}.${u.reboot_for?.length ? ' A restart is needed afterwards.' : ''}`,
+    done: u.reboot_for?.length ? 'Installed. Restart to finish.' : 'Installed.',
+    error: `Failed: ${u.error}` }[u.status] ?? 'Updates are never installed automatically.';
+  $('update-status').textContent = text;
+  $('update-list').innerHTML = u.status === 'available' ? u.updates.map((p) =>
+    `<li><span>${escapeHtml(p.name)}</span><span class="sub">${escapeHtml(p.old)} → ${escapeHtml(p.new)}</span></li>`).join('') : '';
+  $('update-check').disabled = ['checking', 'applying'].includes(u.status);
+  $('update-apply').hidden = u.status !== 'available';
+  $('update-reboot').hidden = !(u.status === 'done' && u.reboot_for?.length);
+  $('update-log').textContent = ['checking', 'applying'].includes(u.status) ? (u.log ?? []).join('\n') : '';
+  $('snapshots').innerHTML = (u.snapshots ?? []).filter((s) => s.type !== 'post').map((s) => `<li>
+      <span>${escapeHtml(new Date(`${s.date.replace(' ', 'T')}Z`).toLocaleString())}<br><span class="sub">${
+        s.number === u.booted_snapshot ? 'running now' : s.number === u.fallback ? 'before the last update'
+          : escapeHtml(s.description.startsWith('pacman') ? 'before an update' : s.description)}</span></span>
+      <span class="row" style="margin:0;flex:0 0 auto"><button data-once="${s.number}">Start once</button>
+      <button data-rollback="${s.number}" class="danger">Roll back</button></span></li>`).join('');
+}
+function renderWifi() {
+  const n = state.network ?? {};
+  $('wifi-status').textContent = !n.wifi_device ? (n.ethernet ? 'Connected by cable (no Wi-Fi hardware).' : 'No Wi-Fi hardware.')
+    : n.connecting ? `Connecting to ${n.connecting}…` : n.message || (n.ssid ? `Connected to ${n.ssid}.` : n.ethernet ? 'Connected by cable.' : 'Not connected.');
+  $('wifi-scan').disabled = !n.wifi_device || n.scanning;
+  $('wifi-scan').textContent = n.scanning ? 'Searching…' : 'Search';
+  $('wifi-list').innerHTML = (n.networks ?? []).map((net) => {
+    const saved = (n.known ?? []).includes(net.ssid);
+    return `<li class="tap" data-ssid="${escapeHtml(net.ssid)}" data-secure="${net.secure}" data-saved="${saved}">
+      <span>${escapeHtml(net.ssid)} <span class="sub">${net.connected ? '· connected' : saved ? '· saved' : ''}</span></span>
+      <span class="sub">${net.secure ? '🔒 ' : ''}${net.signal}%</span></li>`;
+  }).join('');
+}
+$('wifi-scan').addEventListener('click', () => send('wifi_scan'));
+
+function renderBluetooth() {
+  const b = state.bluetooth ?? {};
+  $('bt-status').textContent = !b.available ? 'No Bluetooth adapter.' : b.message
+    || 'Put a controller or headphones in pairing mode, then Search.';
+  $('bt-scan').disabled = !b.available || b.scanning;
+  $('bt-scan').textContent = b.scanning ? 'Searching…' : 'Search';
+  $('bt-list').innerHTML = (b.devices ?? []).map((d) => {
+    const actions = !d.paired ? [['bt_pair', 'Pair']] : [[d.connected ? 'bt_disconnect' : 'bt_connect', d.connected ? 'Disconnect' : 'Connect'], ['bt_remove', 'Forget']];
+    return `<li><span>${escapeHtml(d.name)} <span class="sub">· ${escapeHtml(d.kind)}${d.connected ? ' · connected' : ''}</span></span>
+      <span class="row" style="margin:0;flex:0 0 auto">${b.busy === d.path ? '<span class="sub">working…</span>'
+        : actions.map(([cmd, text]) => `<button data-bt="${cmd}" data-path="${escapeHtml(d.path)}">${text}</button>`).join('')}</span></li>`;
+  }).join('');
+}
+$('bt-scan').addEventListener('click', () => send('bt_scan'));
+$('bt-list').addEventListener('click', (event) => {
+  const { bt, path } = event.target.dataset;
+  if (bt && (bt !== 'bt_remove' || confirm('Forget this device?'))) send(bt, { path });
+});
+$('wifi-list').addEventListener('click', (event) => {
+  const li = event.target.closest('li[data-ssid]');
+  if (!li) return;
+  const ssid = li.dataset.ssid;
+  if (li.dataset.saved === 'true') {
+    if (confirm(`Forget ${ssid}? (Cancel connects to it instead.)`)) send('wifi_forget', { ssid });
+    else send('wifi_connect', { ssid });
+  } else if (li.dataset.secure === 'true') {
+    const password = prompt(`Password for ${ssid}`);
+    if (password) send('wifi_connect', { ssid, password });
+  } else {
+    send('wifi_connect', { ssid });
+  }
+});
+
+$('update-check').addEventListener('click', () => send('update_check'));
+$('update-apply').addEventListener('click', () => send('update_apply'));
+$('update-reboot').addEventListener('click', () => { if (confirm('Reboot the box now?')) send('reboot'); });
+$('snapshots').addEventListener('click', (event) => {
+  const once = event.target.dataset.once, back = event.target.dataset.rollback;
+  if (once && confirm(`Restart into snapshot ${once}? The next restart after that goes back to the normal system.`)) {
+    send('snapshot_boot_once', { number: Number(once) });
+  }
+  if (back && confirm(`Replace the system with snapshot ${back} and restart? The current system is kept until the next rollback.`)) {
+    send('snapshot_rollback', { number: Number(back) });
+  }
+});
+
 $('volume').addEventListener('change', () => send('volume_set', { percent: Number($('volume').value) }));
 $('outputs').addEventListener('click', (event) => {
   const li = event.target.closest('li[data-id]');
@@ -184,7 +265,7 @@ function showTab(name) {
   clearInterval(healthTimer);
   if (name === 'health') { loadHealth(); healthTimer = setInterval(loadHealth, 5000); }
   if (name === 'bindings') loadBindings();
-  if (name === 'settings') send('refresh');
+  if (name === 'settings') { send('refresh'); send('snapshots'); }
 }
 $('tabs').addEventListener('click', (event) => { if (event.target.dataset.tab) showTab(event.target.dataset.tab); });
 
@@ -195,6 +276,9 @@ function render() {
   $('link-state').classList.toggle('off', !state.type);
   renderApps();
   renderSettings();
+  renderUpdates();
+  renderWifi();
+  renderBluetooth();
 }
 
 connect('phone', (msg) => {

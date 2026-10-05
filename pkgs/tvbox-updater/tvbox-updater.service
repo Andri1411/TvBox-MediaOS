@@ -1,0 +1,10 @@
+[Unit]
+Description=tvbox updates and snapshots
+Requires=tvbox-updater.socket
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/tvbox-updater
+# An update must not be cut off half way.
+KillMode=process
+TimeoutStopSec=30min

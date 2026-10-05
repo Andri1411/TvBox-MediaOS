@@ -1,0 +1,10 @@
+[Unit]
+Description=tvbox: confirm this boot works, two minutes after start
+
+[Timer]
+OnBootSec=2min
+# Not confirmed then (e.g. the session took long): try again a few times.
+OnUnitInactiveSec=1min
+
+[Install]
+WantedBy=timers.target

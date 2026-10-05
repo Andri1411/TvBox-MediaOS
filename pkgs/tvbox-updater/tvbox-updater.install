@@ -1,0 +1,13 @@
+# The boot environment lives on the EFI partition; GRUB's menu needs the new
+# scripts. (Unit enabling is done by tvbox-base's enabled-units.)
+_tvbox_updater() {
+    if mountpoint -q /efi; then
+        mkdir -p /efi/tvbox
+        [[ -f /efi/tvbox/grubenv ]] || grub-editenv /efi/tvbox/grubenv create
+        if [[ -f /boot/grub/grub.cfg ]]; then
+            grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 || echo "tvbox-updater: grub-mkconfig failed"
+        fi
+    fi
+}
+post_install() { _tvbox_updater; }
+post_upgrade() { _tvbox_updater; }

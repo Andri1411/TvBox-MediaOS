@@ -169,6 +169,29 @@ def main():
     changed = wait_for(lambda: unit_pid("beta") not in ("", "0", before) and windows().get("beta") == ["foot"])
     check("menu: Restart app restarts the focused service", bool(changed), f"{before} -> {unit_pid('beta')}")
 
+    # Menu: Close apps lists the open ones (focused first: beta), A closes it.
+    api(cmd="launch", id="alpha")
+    daemon.wait_status(lambda s: s["app"] == "alpha")
+    api(cmd="launch", id="beta")
+    daemon.wait_status(lambda s: s["app"] == "beta")
+    long_press(pad, e.BTN_MODE)
+    wait_state(lambda s: s["overlay"] == "menu")
+    step(pad, *["down"] * 6, e.BTN_SOUTH)                            # Close apps
+    step(pad, e.BTN_SOUTH)                                           # beta (current)
+    st = wait_state(lambda s: service(s, "beta")["state"] == "stopped" and s["app"] == "home")
+    check("menu: Close apps closes the current app, goes home, the menu stays open",
+          service(st, "beta")["state"] == "stopped" and st["app"] == "home" and st["overlay"] == "menu"
+          and service(st, "alpha")["state"] == "running", f"{st['app']} {st['overlay']} {st['services'][:2]}")
+    api(cmd="launch", id="beta")
+    wait_state(lambda s: service(s, "beta")["state"] == "running")
+    api(cmd="stop_all_apps")
+    st = wait_state(lambda s: all(x["state"] == "stopped" for x in s["services"]))
+    check("Close all closes every open app", all(x["state"] == "stopped" for x in st["services"])
+          and st["app"] == "home", str([(x["id"], x["state"]) for x in st["services"]]))
+    api(cmd="close")
+    api(cmd="launch", id="beta")
+    daemon.wait_status(lambda s: s["app"] == "beta")
+
     swaymsg("[workspace=beta] kill")              # the app is closed (as if quit from its own menu)
     status = daemon.wait_status(lambda s: s["app"] == "home", 15)
     st = wait_state(lambda s: service(s, "beta")["state"] == "stopped")

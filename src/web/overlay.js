@@ -19,6 +19,10 @@ function currentService() {
   return state.services?.find((s) => s.id === state.app);
 }
 
+function openServices() {
+  return (state.services ?? []).filter((s) => s.state !== 'stopped');
+}
+
 // ---- menu definition: views -> items ------------------------------------
 const VIEWS = {
   main: () => ({
@@ -30,6 +34,7 @@ const VIEWS = {
       { label: 'Mute', value: state.muted ? 'On' : 'Off', disabled: state.volume == null, ok: () => send('mute') },
       { label: 'Audio output', value: currentOutput(), disabled: !state.sinks?.length, ok: () => push('outputs') },
       { label: 'Restart app', value: currentService()?.name ?? '', disabled: !currentService(), ok: () => send('restart_app') },
+      { label: 'Close apps', value: openServices().length ? `${openServices().length} open` : '', disabled: !openServices().length, ok: () => push('close_apps') },
       { label: 'Mouse mode', value: state.mouse ? 'On' : 'Off', ok: () => send('mouse_toggle') },
       { label: 'Settings', ok: () => send('settings') },
       { label: 'Restart session', ok: () => push('confirm_session') },
@@ -46,6 +51,18 @@ const VIEWS = {
         ok: () => send('switch_app', { id: s.id }),
       })),
       initial: Math.max(0, services.findIndex((s) => s.focused)),
+    };
+  },
+  close_apps: () => {
+    const open = openServices();
+    const items = open.map((s) => ({
+      label: s.name, value: s.focused ? 'current' : '', ok: () => send('stop_app', { id: s.id }),
+    }));
+    if (open.length > 1) items.push({ label: 'Close all', ok: () => send('stop_all_apps') });
+    return {
+      title: 'Close apps',
+      items: items.length ? items : [{ label: 'No apps open', disabled: true }],
+      initial: Math.max(0, open.findIndex((s) => s.focused)),
     };
   },
   outputs: () => ({
@@ -87,7 +104,7 @@ function render() {
     $('notice').hidden = !errors.length && state.input_connected;
     $('notice').textContent = !state.input_connected ? 'Input daemon is not running.'
       : `Bindings file has errors; the previous bindings stay active. ${errors[0] ?? ''}`;
-    $('footer').textContent = [state.hostname, state.address, `tvbox ${state.version}`].filter(Boolean).join('  ·  ');
+    $('footer').textContent = [state.hostname, state.address, `TvBox MediaOS ${state.version}`].filter(Boolean).join('  ·  ');
   }
   setVisible();
 }

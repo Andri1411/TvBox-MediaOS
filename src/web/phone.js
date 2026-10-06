@@ -215,7 +215,7 @@ async function loadHealth() {
   try {
     const h = await (await fetch('/api/health')).json();
     const facts = {
-      Version: `tvbox ${h.version}`,
+      Version: `TvBox MediaOS ${h.version}`,
       'CPU temperature': h.cpu_temp_c == null ? 'no sensor' : `${h.cpu_temp_c} °C`,
       Uptime: h.uptime_s == null ? '?' : duration(h.uptime_s),
       Load: h.load.map((l) => l.toFixed(2)).join('  '),

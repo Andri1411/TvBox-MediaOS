@@ -29,9 +29,9 @@ real hardware. What only the hardware can show is listed at the end of
 
 ## 1. Get the installer ISO
 
-Either download it from GitHub (Actions → *ci* → *Run workflow* with
-"Also build the installer ISO" ticked; the ISO is attached to the run as an
-artifact), or build it yourself on Linux (needs docker, see "Building"):
+Build it yourself on Linux (needs docker, see "Building"). It isn't
+published for download: it contains hundreds of Arch Linux packages, and
+handing those out means handing out their sources too (see "Licenses").
 
 ```sh
 git clone https://github.com/Andri1411/TvBox-MediaOS && cd TvBox-MediaOS
@@ -149,3 +149,25 @@ make qemu-update   # update, automatic boot fallback and rollback
 
 Nothing here ever writes to a real disk on the development machine; installs
 are only tested on QEMU disk images under `build/`.
+
+## Licenses
+
+- **This project** (everything in this repository) is free software under
+  the GNU General Public License, version 3 or later: see [LICENSE](LICENSE).
+  The `tvbox-*` packages on the update site are built from this repository;
+  their version number counts its commits.
+- **Third-party packages** built by CI and published on the update site
+  (currently `jellyfin-desktop` and `xpadneo-dkms`, both GPL) keep their own
+  licenses. Their recipes and complete sources are published next to them:
+  [andri1411.github.io/TvBox-MediaOS](https://andri1411.github.io/TvBox-MediaOS/),
+  under *Sources*.
+- **Arch Linux packages** are installed and updated straight from Arch
+  Linux's mirrors, under their own licenses; their sources are at
+  [sources.archlinux.org](https://sources.archlinux.org/). This project is
+  based on Arch Linux but is not affiliated with or endorsed by it; "Arch
+  Linux" is a trademark of its owners.
+- **Widevine** (Google's DRM module for Netflix and Disney+) is proprietary.
+  It is not distributed by this project: each box downloads it from Google
+  itself (`tvbox-widevine-update`).
+- **uBlock Origin Lite** (GPL-3.0) is installed by each browser from the
+  Chrome Web Store, by policy; it is not distributed by this project.

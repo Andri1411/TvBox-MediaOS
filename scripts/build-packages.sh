@@ -69,6 +69,7 @@ build_aur() {  # build_aur <name> <commit>
     local stamp="$out/.aur-$name"
     if [[ $(cat "$stamp" 2>/dev/null) == "$commit" ]] && compgen -G "$out/$name-[0-9]*.pkg.tar.zst" >/dev/null; then
         log "AUR $name @ ${commit:0:10} (already built)"
+        compgen -G "$BUILD_DIR/sources/$name-[0-9]*" >/dev/null || publish_source "$name" "$dir"
         return 0
     fi
     git -C "$dir" fetch -q origin
@@ -79,6 +80,33 @@ build_aur() {  # build_aur <name> <commit>
     # kernel headers to test-build the module; DKMS builds it on the box).
     build_dir "$dir" --syncdeps --needed --nocheck
     echo "$commit" > "$stamp"
+    publish_source "$name" "$dir"
+}
+
+# The GPL wants the source of every binary we publish next to it: for third-
+# party packages, their recipe and sources go to $BUILD_DIR/sources (the update
+# site serves them). Our own packages' source is this repository.
+srcout="$BUILD_DIR/sources"
+publish_source() {  # publish_source <name> <dir-with-PKGBUILD>
+    local name=$1 dir=$2 pkg ver tree
+    mkdir -p "$srcout"
+    rm -f "$srcout/$name"-[0-9]*
+    if grep -q '^source=.*git+' "$dir/PKGBUILD"; then
+        # A git checkout (its mirror can be ~100 MB): the recipe, plus the
+        # exact tree that was compiled, submodules included.
+        (cd "$dir" && SRCPKGDEST="$srcout" makepkg --config "$work/makepkg.conf" --source --force)
+        pkg=$(compgen -G "$out/$name-[0-9]*.pkg.tar.zst" | head -1)
+        ver=${pkg##*/"$name"-}; ver=${ver%-*.pkg.tar.zst}
+        for tree in "$BUILDDIR/$name"/src/*/; do
+            [[ -e $tree/.git ]] || continue
+            (cd "$tree" && git ls-files --recurse-submodules -z \
+                | tar --null -T - --transform "s,^,${name}-${ver}/," -czf "$srcout/$name-$ver-tree.tar.gz")
+        done
+        compgen -G "$srcout/$name-*-tree.tar.gz" >/dev/null || die "no source tree of $name (build it again)"
+    else
+        (cd "$dir" && SRCPKGDEST="$srcout" makepkg --config "$work/makepkg.conf" --allsource --force)
+    fi
+    log "sources of $name in $srcout"
 }
 
 wanted() {  # wanted <name>: true if no filter was given or name is in it

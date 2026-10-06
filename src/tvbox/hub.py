@@ -497,7 +497,16 @@ class Hub:
             await self.close_overlay()
             await self.apps.launch(str(msg["id"]))
         elif cmd == "stop_app":
-            await self.apps.stop(str(msg["id"]))
+            service = self.apps.get(str(msg["id"]))
+            if not service:
+                raise ValueError("unknown app")
+            if service.id == self.app:
+                # The menu stays open, over the home screen, to close more.
+                await self.sway_command(f"workspace {HOME}")
+            await self.apps.stop(service.id)
+        elif cmd == "stop_all_apps":
+            await self.sway_command(f"workspace {HOME}")
+            await asyncio.gather(*(self.apps.stop(s_id) for s_id in list(self.apps.active)))
         elif cmd == "display_scale":
             scale = str(msg["scale"])
             if scale not in SCALES:

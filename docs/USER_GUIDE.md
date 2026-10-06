@@ -39,6 +39,8 @@ It opens on top of whatever is on screen:
 - **Mute**
 - **Audio output**: TV speakers, a soundbar, Bluetooth headphones
 - **Restart app**: when an app misbehaves
+- **Close apps**: the apps that are open; choose one to close it (or **Close
+  all**). Closing the app you are in takes you to the home screen.
 - **Mouse mode**: see below
 - **Settings**
 - **Restart session**: closes all apps and starts the screen again

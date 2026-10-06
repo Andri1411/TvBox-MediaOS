@@ -197,7 +197,7 @@ def main():
     # --- mouse mode from the menu ---
     long_press(pad, e.BTN_MODE)
     wait_state(lambda s: s["overlay"] == "menu")
-    step(pad, *["down"] * 6, e.BTN_SOUTH)
+    step(pad, *["down"] * 7, e.BTN_SOUTH)                            # Mouse mode
     status = daemon.wait_status(lambda s: s["mode"] == "mouse")
     st = state()
     check("menu: mouse mode on", status["mode"] == "mouse" and st["mouse"] and st["overlay"] is None,
@@ -211,7 +211,7 @@ def main():
     check("closing it returns to mouse mode", status["mode"] == "mouse", status["mode"])
     long_press(pad, e.BTN_MODE)
     wait_state(lambda s: s["overlay"] == "menu")
-    step(pad, *["down"] * 6, e.BTN_SOUTH)
+    step(pad, *["down"] * 7, e.BTN_SOUTH)                            # Mouse mode
     status = daemon.wait_status(lambda s: s["mode"] == "app")
     check("menu: mouse mode off", status["mode"] == "app" and not state()["mouse"], status["mode"])
 

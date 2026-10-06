@@ -208,8 +208,16 @@ def main():
     check("holding the d-pad repeats", 8 <= got.count("KEY_UP:1") <= 14, str(got))
 
     pad.press(e.BTN_MODE)
-    got = actions(daemon.read())
+    got = actions(daemon.read(0.8))         # after double_tap_ms without a second press
     check("Xbox button short = home", got == ["ui:home"], str(got))
+    # Xbox controllers over Bluetooth report the Xbox button's release with
+    # its press, however long it is held: two quick taps open the menu.
+    pad.press(e.BTN_MODE, hold=0)
+    time.sleep(0.12)
+    pad.press(e.BTN_MODE, hold=0)
+    got = actions(daemon.read(0.8))
+    check("Xbox button twice quickly = system menu, and not home", got == ["ui:system_menu"], str(got))
+    close_menu(daemon)
     pad.set(e.EV_KEY, e.BTN_MODE, 1)
     time.sleep(0.35)
     early = actions(daemon.read(0.05))

@@ -53,14 +53,16 @@ class Binding:
     press: Action | None = None
     long: Action | None = None
     repeat: bool = False
+    double: Action | None = None      # two quick presses; a single one then waits for double_tap_ms
 
     def actions(self) -> list[Action]:
-        return [a for a in (self.press, self.long) if a]
+        return [a for a in (self.press, self.long, self.double) if a]
 
 
 @dataclass(frozen=True)
 class Timing:
     long_press_ms: int = 500
+    double_tap_ms: int = 300
     repeat_delay_ms: int = 350
     repeat_hz: float = 12
 
@@ -142,17 +144,20 @@ def _parse_binding(value) -> Binding:
     if isinstance(value, str):
         return Binding(press=parse_action(value))
     if not isinstance(value, dict):
-        raise ValueError("binding must be an action string or a table {press, long, repeat}")
-    unknown = set(value) - {"press", "long", "repeat"}
+        raise ValueError("binding must be an action string or a table {press, long, double, repeat}")
+    unknown = set(value) - {"press", "long", "double", "repeat"}
     if unknown:
-        raise ValueError(f"unknown key(s) {', '.join(sorted(unknown))} (allowed: press, long, repeat)")
+        raise ValueError(f"unknown key(s) {', '.join(sorted(unknown))} (allowed: press, long, double, repeat)")
     repeat = value.get("repeat", False)
     if not isinstance(repeat, bool):
         raise ValueError("repeat must be true or false")
     b = Binding(press=parse_action(value.get("press", "none")),
-                long=parse_action(value.get("long", "none")), repeat=repeat)
+                long=parse_action(value.get("long", "none")), repeat=repeat,
+                double=parse_action(value.get("double", "none")))
     if b.repeat and b.long:
         raise ValueError("repeat and long cannot be combined on one button")
+    if b.repeat and b.double:
+        raise ValueError("repeat and double cannot be combined on one button")
     if b.repeat and not b.press:
         raise ValueError("repeat needs a press action")
     return b
@@ -216,7 +221,8 @@ def _parse_device(raw, where: str, errors: list[str]) -> DeviceRule | None:
 
 # Numeric settings: section -> key -> (lowest, highest)
 _NUMBERS = {
-    "timing": {"long_press_ms": (150, 5000), "repeat_delay_ms": (50, 5000), "repeat_hz": (1, 60)},
+    "timing": {"long_press_ms": (150, 5000), "double_tap_ms": (100, 1000), "repeat_delay_ms": (50, 5000),
+               "repeat_hz": (1, 60)},
     "mouse": {"speed": (100, 5000), "scroll_speed": (1, 100)},
 }
 

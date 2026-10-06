@@ -26,12 +26,59 @@ def test_plain_press_fires_on_button_down(rig):
 
 def test_short_press_with_long_binding_fires_on_release(rig):
     engine, clock, out = rig
-    engine.button("home", True)
+    engine.set_config(config('[global]\nstart = { press = "key:space", long = "key:k" }'))
+    engine.button("start", True)
     clock.advance(0.3)
     assert out.take() == []
+    engine.button("start", False)
+    assert out.take() == ["key:space"]
+    clock.advance(2)
+    assert out.take() == []
+
+
+def test_single_press_of_a_double_button_waits_for_a_second_one(rig):
+    engine, clock, out = rig
+    engine.button("home", True)
+    clock.advance(0.1)
     engine.button("home", False)
+    assert out.take() == []
+    clock.advance(0.29)
+    assert out.take() == []
+    clock.advance(0.02)                 # double_tap_ms = 300
     assert out.take() == ["ui:home"]
     clock.advance(2)
+    assert out.take() == []
+
+
+def test_double_press_opens_the_menu(rig):
+    """Xbox controllers over Bluetooth: the Xbox button's release comes with
+    its press, however long it is held."""
+    engine, clock, out = rig
+    tap(engine, "home")
+    clock.advance(0.2)
+    tap(engine, "home")
+    assert out.take() == ["ui:system_menu"]
+    clock.advance(2)
+    assert out.take() == []             # neither the single press nor a long one
+    tap(engine, "home")                 # and the next press starts afresh
+    clock.advance(0.31)
+    assert out.take() == ["ui:home"]
+
+
+def test_double_press_works_in_ui_mode(rig):
+    engine, clock, out = rig
+    engine.set_mode("ui")
+    tap(engine, "home")
+    clock.advance(0.1)
+    tap(engine, "home")
+    assert out.take() == ["ui:system_menu"]
+
+
+def test_app_change_cancels_a_pending_single_press(rig):
+    engine, clock, out = rig
+    tap(engine, "home")
+    engine.set_app("youtube")
+    clock.advance(1)
     assert out.take() == []
 
 
@@ -142,6 +189,7 @@ def test_menu_button_works_in_every_mode(rig):
         clock.advance(0.6)
         engine.button("home", False)
         tap(engine, "home")
+        clock.advance(0.31)              # a single press waits for a possible second one
         assert out.take() == ["ui:system_menu", "ui:home"], mode
 
 

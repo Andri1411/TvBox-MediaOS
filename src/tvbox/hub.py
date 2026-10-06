@@ -271,6 +271,15 @@ class Hub:
             await self.sway_command("mode default")
 
     # -- system -------------------------------------------------------------
+    async def audio_startup(self) -> None:
+        """The hub starts with the session, often before PipeWire has found
+        the sound card: read the outputs (and switch to HDMI) once it has."""
+        for _ in range(30):
+            await self.refresh_audio()
+            if self.sinks:
+                return
+            await asyncio.sleep(2)
+
     async def refresh_audio(self) -> None:
         data = await audio.dump()
         # Sound to the TV: a card playing through its analog jack while a TV
@@ -730,7 +739,7 @@ class Hub:
         await runner.setup()
         await web.TCPSite(runner, host, port).start()
         self.spawn(self.input_link())
-        self.spawn(self.refresh_audio())
+        self.spawn(self.audio_startup())
         self.spawn(self.sway_command("mode default"))   # in case a previous hub died mid-menu
         self.spawn(self.apps.window_watch())
         self.spawn(self.apps.memory_watch())

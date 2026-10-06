@@ -77,11 +77,11 @@ longer needed.
 - **Pair your phone** as a remote: Settings → Pair a phone, scan the QR code.
   The phone remote has a text field, which is the easiest way to type passwords.
 - **Bluetooth controller or headphones:** Settings → Bluetooth.
-- **Audio output** (TV, soundbar, headphones): hold the Xbox button → Audio
+- **Audio output** (TV, soundbar, headphones): Xbox button twice → Audio
   output.
 
 The buttons, briefly: D-pad = move, **A** = OK, **B** = back, **Xbox** =
-home, **hold Xbox** = system menu, **Start** = play/pause, **LT/RT** =
+home, **Xbox twice** = system menu, **Start** = play/pause, **LT/RT** =
 volume, **Y** = keyboard. Everything else is in the
 [user guide](docs/USER_GUIDE.md).
 

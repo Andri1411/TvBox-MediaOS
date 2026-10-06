@@ -11,7 +11,7 @@ Everything here works with the Xbox controller alone. A phone works too (see
 | **A** | Select / OK |
 | **B** | Back |
 | **Xbox button**, short press | Home screen |
-| **Xbox button**, hold (half a second) | System menu, from anywhere |
+| **Xbox button**, twice quickly | System menu, from anywhere (holding it works too, over a USB cable) |
 | **Start** | Play / pause |
 | **LB / RB** | Rewind / fast-forward |
 | **LT / RT** | Volume down / up (hold to keep changing) |
@@ -29,7 +29,7 @@ is paused when you leave. "running" on a tile means it is still open.
 
 The last tile, **Settings**, has everything else (below).
 
-## The system menu (hold the Xbox button)
+## The system menu (Xbox button twice)
 
 It opens on top of whatever is on screen:
 
@@ -44,7 +44,7 @@ It opens on top of whatever is on screen:
 - **Restart session**: closes all apps and starts the screen again
 - **Reboot**
 
-**B** or the Xbox button (held) closes it.
+**B** or the Xbox button twice closes it.
 
 ## Signing in to the services
 
@@ -58,6 +58,10 @@ It opens on top of whatever is on screen:
 - **Jellyfin**: the first time, it asks for your server's address. Press
   **Y** for the keyboard, type the address (for example
   `192.168.1.10:8096`), then sign in.
+  If the D-pad then only scrolls the page instead of moving a frame, switch
+  Jellyfin to its TV layout once: turn on **Mouse mode** (Xbox button twice
+  → Mouse mode), open Jellyfin's menu → **Settings** → **Display** →
+  **Display mode: TV**, save, and turn Mouse mode off again.
 
 Cookie banners on Netflix and Disney+: the first press of the D-pad lands on
 their first button; move to "Reject" or "Accept" and press **A**.
@@ -150,8 +154,8 @@ removed.
 | An app shows a blank or frozen screen | YouTube, Netflix, Disney+ and Floatplane are restarted by themselves within about half a minute. Any app: System menu → **Restart app**. |
 | The controller does nothing | Press the Xbox button to wake it. If it was paired by Bluetooth, re-pair it (Settings → Bluetooth), or plug it in with a USB cable. |
 | No sound | System menu → **Audio output**, choose the TV or soundbar. Check **Mute**. |
-| The picture is black after switching the TV back on | Wait a few seconds; if it stays black, hold the Xbox button and choose **Restart session**. |
-| Everything is stuck | Hold the Xbox button → **Reboot**. If the menu doesn't come up, unplug the box for ten seconds. |
+| The picture is black after switching the TV back on | Wait a few seconds; if it stays black, press the Xbox button twice and choose **Restart session**. |
+| Everything is stuck | Xbox button twice → **Reboot**. If the menu doesn't come up, unplug the box for ten seconds. |
 | A service changed its website and navigation broke | Use **Mouse mode** until an update fixes it. |
 
 ## For whoever maintains the box

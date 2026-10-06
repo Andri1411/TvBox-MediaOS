@@ -1,6 +1,6 @@
 """Button state machine: logical button down/up -> actions (second layer).
 
-Handles short press, long press and hold-repeat, per-app bindings and the
+Handles short press, long press, double press and hold-repeat, per-app bindings and the
 three input modes. Pure logic: time comes from a scheduler with asyncio's
 `call_later` interface and results go to an output object, so tests drive it
 with a fake clock.
@@ -51,6 +51,9 @@ class Engine:
         self.mode = "app"
         self.app: str | None = None
         self._held: dict[str, _Held] = {}
+        # Buttons with a double action, released once: the single press fires
+        # when no second press follows within double_tap_ms.
+        self._tapped: dict[str, Any] = {}
 
     # -- state changes ------------------------------------------------------
     def set_config(self, config: Config) -> None:
@@ -80,6 +83,9 @@ class Engine:
                 self.output.click(False, held.click)
                 held.click = None
             held.done = True
+        for timer in self._tapped.values():
+            timer.cancel()
+        self._tapped.clear()
 
     # -- input --------------------------------------------------------------
     def button(self, name: str, down: bool) -> None:
@@ -106,9 +112,10 @@ class Engine:
             binding = self.config.lookup(name)
             if binding:
                 allowed = {k: a if a and a.kind in _UI_MODE_KINDS else None
-                           for k, a in (("press", binding.press), ("long", binding.long))}
+                           for k, a in (("press", binding.press), ("long", binding.long),
+                                        ("double", binding.double))}
                 binding = Binding(allowed["press"], allowed["long"],
-                                  binding.repeat and allowed["press"] is not None)
+                                  binding.repeat and allowed["press"] is not None, allowed["double"])
             return _Held(binding=binding)
         return _Held(binding=self.config.lookup(name, self.app))
 
@@ -123,9 +130,16 @@ class Engine:
                     timing.repeat_delay_ms / 1000, self._repeat, name, held)
         elif held.binding:
             b = held.binding
-            if b.long:
+            if b.double and name in self._tapped:
+                # Second press in time: the double action, and nothing on release.
+                self._tapped.pop(name).cancel()
+                held.done = True
+                self.output.action(b.double, name)
+            elif b.long:
                 held.timer = self.scheduler.call_later(
                     timing.long_press_ms / 1000, self._long, name, held)
+            elif b.double:
+                pass                          # decided on release
             elif b.press:
                 self.output.action(b.press, name)
                 if b.repeat:
@@ -137,9 +151,20 @@ class Engine:
             held.timer.cancel()
         if held.click:
             self.output.click(False, held.click)
+        elif not held.done and held.binding and held.binding.double:
+            # Wait for a possible second press; Xbox controllers over Bluetooth
+            # report the Xbox button's release at once, so double is their
+            # only second gesture.
+            self._tapped[name] = self.scheduler.call_later(
+                self.config.timing.double_tap_ms / 1000, self._single, name, held.binding)
         elif not held.done and held.binding and held.binding.long and held.binding.press:
             # A button with a long action fires its short press on release.
             self.output.action(held.binding.press, name)
+
+    def _single(self, name: str, binding: Binding) -> None:
+        self._tapped.pop(name, None)
+        if binding.press:
+            self.output.action(binding.press, name)
 
     def _long(self, name: str, held: _Held) -> None:
         held.timer = None

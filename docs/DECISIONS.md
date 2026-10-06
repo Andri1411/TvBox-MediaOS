@@ -1128,3 +1128,26 @@ HDMI):
   unless the analog output was chosen in the menu (remembered in
   `~/.local/share/tvbox/audio-analog`). Tested against the box's own
   `pw-dump`, and QEMU's one-profile card.
+
+### On the real hardware: the Xbox button, Jellyfin, audio at start
+
+- **Holding the Xbox button never opened the system menu.** Read from the
+  device: the Xbox Wireless Controller over Bluetooth (xpadneo 0.10.4)
+  reports the Xbox button's release in the same instant as its press, however
+  long it is held, so a hold can't be told from a tap. Decided with the
+  owner: **two quick presses** open the menu. Bindings have a new `double`
+  action; a single press of such a button fires after `double_tap_ms`
+  (300 ms) without a second one. Home therefore takes 0.3 s longer. `long`
+  stays on the Xbox button for controllers that do report holds (USB).
+- **Jellyfin: the D-pad only scrolled.** Our input reaches Jellyfin as
+  arrow keys (checked on the virtual device), but its web interface ran in
+  *desktop* layout: jellyfin-desktop 2.0.0's shell integration
+  (`window.NativeShell`) doesn't load into the server's web client (10.11),
+  so the interface never learns it is on a TV, and its log says "Web Client
+  has not connected". With Display mode = TV (Jellyfin's own setting,
+  stored in its profile) the D-pad, OK and Back work. Set on the owner's
+  box; documented in the user guide. Making it automatic (or fixing the
+  integration) is open.
+- **The audio output list was empty after boot**: the hub read it once,
+  before PipeWire had found the sound card. It now retries for up to a
+  minute, which also makes the switch to HDMI happen at boot.

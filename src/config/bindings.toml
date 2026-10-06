@@ -23,10 +23,13 @@
 #
 # A binding is an action (fires when the button goes down) or a table:
 #   { press = "...", long = "..." }      short press fires on release, long while held
+#   { press = "...", double = "..." }    two quick presses; a single press fires
+#                                        after double_tap_ms without a second one
 #   { press = "...", repeat = true }     fires again while held
 
 [timing]
 long_press_ms = 500
+double_tap_ms = 300
 repeat_delay_ms = 350
 repeat_hz = 12
 
@@ -44,7 +47,9 @@ right = { press = "key:Right", repeat = true }
 ok    = "key:Return"
 back  = "key:Escape"
 # The button that opens the system menu cannot be rebound per app.
-home  = { press = "ui:home", long = "ui:system_menu" }
+# Xbox controllers over Bluetooth report the Xbox button's release at once,
+# so for them only the double press opens the menu; holding works over USB.
+home  = { press = "ui:home", long = "ui:system_menu", double = "ui:system_menu" }
 menu  = "ui:system_menu"
 
 start      = "key:space"            # play/pause

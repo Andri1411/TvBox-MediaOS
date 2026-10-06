@@ -4,11 +4,6 @@ on:
   push:
   pull_request:
   workflow_dispatch:
-    inputs:
-      iso:
-        description: Also build the installer ISO
-        type: boolean
-        default: false
 
 jobs:
   lint:
@@ -59,18 +54,12 @@ jobs:
             test -f "$f.sig" || { echo "missing signature: $f"; exit 1; }
           done
 
-      - if: ${{ inputs.iso }}
-        run: make iso CONTAINER=docker
-
       - uses: actions/upload-artifact@v4
         with:
           name: repo
-          path: build/repo
-      - if: ${{ inputs.iso }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: iso
-          path: build/iso/*.iso
+          path: |
+            build/repo
+            build/sources
 
       - if: env.PUBLISH == 'true'
         run: make pages

@@ -1151,3 +1151,25 @@ HDMI):
 - **The audio output list was empty after boot**: the hub read it once,
   before PipeWire had found the sound card. It now retries for up to a
   minute, which also makes the switch to HDMI happen at boot.
+
+### Licenses
+
+The repository and the update site are public, so publishing binaries is
+distribution in the GPL's sense. What is published, and what goes with it:
+
+- Our own packages (GPL-3.0-or-later): the repository is their source.
+- `jellyfin-desktop` (GPL-2.0) and `xpadneo-dkms` (GPL-2.0/3.0) from the AUR:
+  CI now publishes their sources on the update site under `sources/`. For
+  a tarball source that is `makepkg --allsource`; for a git source
+  (jellyfin-desktop) the recipe (`--source`) plus the exact tree that was
+  compiled, submodules included (`git ls-files --recurse-submodules`; the
+  raw git mirror would be ~100 MB, Pages' file limit). `make pages` fails
+  when a third-party package has no sources.
+- **The installer ISO is no longer built in CI** (it was an Actions
+  artifact anyone could download, with hundreds of Arch binaries and no
+  sources). It is built locally for one's own box. Publishing it later
+  would need a source bundle or a written offer.
+- Arch packages come from Arch's mirrors, Widevine from Google, uBlock
+  Origin Lite from the Chrome Web Store: not redistributed by us.
+- Arch's trademark policy: "based on Arch Linux" is descriptive and fine;
+  the README says it isn't affiliated or endorsed.

@@ -2,7 +2,8 @@
 
 A small Arch Linux–based system for a media PC behind the TV, used entirely
 from the couch with an Xbox controller or a phone. It boots straight into a
-TV home screen with YouTube (TV interface), Netflix, Disney+, Floatplane and
+TV home screen with YouTube (TV interface), Netflix, Disney+, Prime Video,
+Floatplane and
 Jellyfin, keeps itself recoverable with snapshots, and updates over the air
 from this repository, but only when you ask.
 
@@ -71,7 +72,7 @@ longer needed.
 ## 4. First steps (with the controller)
 
 - **Sign in** to the services: YouTube and Floatplane show a code to confirm
-  on your phone; Netflix and Disney+ take e-mail and password (the on-screen
+  on your phone; Netflix, Disney+ and Prime Video take e-mail and password (the on-screen
   keyboard opens by itself); Jellyfin asks for your server's address once.
   Details: [USER_GUIDE.md](docs/USER_GUIDE.md#signing-in-to-the-services).
 - **Pair your phone** as a remote: Settings → Pair a phone, scan the QR code.
@@ -166,7 +167,7 @@ are only tested on QEMU disk images under `build/`.
   [sources.archlinux.org](https://sources.archlinux.org/). This project is
   based on Arch Linux but is not affiliated with or endorsed by it; "Arch
   Linux" is a trademark of its owners.
-- **Widevine** (Google's DRM module for Netflix and Disney+) is proprietary.
+- **Widevine** (Google's DRM module for Netflix, Disney+ and Prime Video) is proprietary.
   It is not distributed by this project: each box downloads it from Google
   itself (`tvbox-widevine-update`).
 - **uBlock Origin Lite** (GPL-3.0) is installed by each browser from the

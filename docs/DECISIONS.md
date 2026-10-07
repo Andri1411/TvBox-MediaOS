@@ -1173,3 +1173,27 @@ distribution in the GPL's sense. What is published, and what goes with it:
   Origin Lite from the Chrome Web Store: not redistributed by us.
 - Arch's trademark policy: "based on Arch Linux" is descriptive and fine;
   the README says it isn't affiliated or endorsed.
+
+### App icons; Prime Video
+
+- **Icons** on the home tiles, the menu's app lists and the phone's app
+  list. Service logos are trademarks, so the repository ships none: each box
+  fetches them itself, like a browser fetching a favicon (`icons.py`). For
+  a website, the page's icon links and its web app manifest (the largest
+  PNG wins; YouTube 512 px, Disney+ 512, Floatplane 196, Netflix only offers
+  64); for a native app, the icon of its .desktop file from the icon theme.
+  `icon = "<name, path or https URL>"` in services.toml overrides it.
+  Cached in `~/.cache/tvbox/icons`, fetched again after 30 days, retried
+  every 6 hours while it fails (no network yet).
+- **SVGs from the web are refused** (an SVG can carry scripts, and the hub
+  serves icons from its own origin); SVG only from the local icon theme.
+  `/icons/<id>` answers with `Content-Security-Policy: default-src 'none';
+  sandbox` and `nosniff`, under the same access rules as the rest of the hub.
+- Tiles with an icon use a darker shade of the service's colour, so logos in
+  that colour (Netflix's red N) stay visible; the name is one line.
+- **Prime Video** added as a browser service with d-pad navigation
+  (`nav = true`, like Netflix and Disney+) and Widevine. Its site rule
+  (player detection, card selectors) is written from the site's public
+  structure and not yet checked signed in. On Linux, Prime Video streams
+  Widevine L3, so expect lower than HD resolution, as with Netflix in a
+  browser.

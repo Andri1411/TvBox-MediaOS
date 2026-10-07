@@ -26,10 +26,11 @@ from pathlib import Path
 
 from aiohttp import WSMsgType, web
 
-from . import NAME, audio, bindings, health, network, services, sway
+from . import NAME, audio, bindings, health, icons, network, services, sway
 from .bluetooth import Bluetooth
 from .apps import HOME, AppManager
 from .auth import COOKIE, DeviceStore, classify, default_store_path, device_name
+from .bindings import APP_ID
 from .updates import Updates, UpdaterError
 from .util import (IN_CLOSE_WRITE, IN_CREATE, IN_DELETE, IN_MOVED_FROM, IN_MOVED_TO, Inotify,
                    input_socket, runtime_dir, sd_notify, setup_logging, watchdog_interval)
@@ -107,6 +108,7 @@ class Hub:
         self.view = "main"                    # view the menu opens with
         self.base_mode = "app"                # input mode outside the overlay: app | mouse
         self.app: str | None = None           # focused app (workspace)
+        self.icons = icons.Icons()
         self.apps = AppManager(self)
         self.volume: int | None = None
         self.muted = False
@@ -584,9 +586,36 @@ class Hub:
 
         def changed() -> None:
             if any(name == paths[0].name for _dir, _mask, name in inotify.read()):
+                overrides = {s.id: s.icon for s in self.apps.services}
                 self.apps.reload()
+                # A changed icon setting replaces the cached icon at once.
+                renewed = [s for s in self.apps.services if overrides.get(s.id, s.icon) != s.icon]
+                self.spawn(self.refresh_icons(renewed))
                 self.push_state()
         asyncio.get_running_loop().add_reader(inotify.fd, changed)
+
+    async def refresh_icons(self, force: list | None = None) -> None:
+        if force and await self.icons.refresh(force, force=True):
+            self.push_state()
+        if await self.icons.refresh(self.apps.services):
+            self.push_state()
+
+    async def icon_watch(self) -> None:
+        """Fetch missing icons now, and again later if there was no network."""
+        while True:
+            await self.refresh_icons()
+            await asyncio.sleep(1800)
+
+    async def icon(self, request: web.Request) -> web.Response:
+        service_id = request.match_info["id"]
+        path = self.icons.path(service_id) if APP_ID.match(service_id) else None
+        if not path:
+            raise web.HTTPNotFound()
+        return web.Response(body=path.read_bytes(), content_type=icons.TYPES[path.suffix], headers={
+            # Pictures only: nothing in them may run, even when opened directly.
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "max-age=86400"})       # the pages add ?v=<mtime>
 
     # -- HTTP ---------------------------------------------------------------
     async def ws_handler(self, request: web.Request) -> web.WebSocketResponse:
@@ -738,6 +767,7 @@ class Hub:
                         web.get("/api/pair/qr.svg", self.api_pair_qr),
                         web.get("/api/bindings", self.api_bindings), web.post("/api/bindings", self.api_bindings),
                         web.get("/api/health", self.api_health),
+                        web.get("/icons/{id}", self.icon),
                         web.static("/static", webroot)])
         return app
 
@@ -758,6 +788,7 @@ class Hub:
         self.spawn(self.display_watch())
         self.spawn(self.refresh_network())
         self.spawn(self.updates.daily_check())
+        self.spawn(self.icon_watch())
         self.watch_services()
         sd_notify("READY=1")
         log.info("listening on port %d", port)

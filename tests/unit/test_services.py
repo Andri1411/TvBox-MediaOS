@@ -23,13 +23,13 @@ def errors(text):
 
 def test_default_services_from_the_brief():
     found = services.load([DEFAULTS])
-    assert [s.id for s in found] == ["youtube", "netflix", "disney", "floatplane", "jellyfin"]
+    assert [s.id for s in found] == ["youtube", "netflix", "disney", "prime", "floatplane", "jellyfin"]
     youtube, jellyfin = found[0], found[-1]
     assert youtube.kind == "browser" and youtube.url == "https://www.youtube.com/tv"
     assert "PS4" in youtube.user_agent              # preset name resolved
     assert found[1].user_agent == ""                    # Netflix: the browser's own
     assert jellyfin.kind == "native" and jellyfin.exec[0] == "jellyfin-desktop"
-    assert [s.id for s in found if s.nav] == ["netflix", "disney"]
+    assert [s.id for s in found if s.nav] == ["netflix", "disney", "prime"]
 
 
 def test_add_change_remove_reorder_without_touching_code():
@@ -47,7 +47,7 @@ enabled = false
 id = "youtube"
 url = "https://www.youtube.com/tv#/settings"
 ''')
-    assert [s.id for s in found] == ["plex", "youtube", "disney", "floatplane", "jellyfin"]
+    assert [s.id for s in found] == ["plex", "youtube", "disney", "prime", "floatplane", "jellyfin"]
     youtube = found[1]
     assert youtube.url.endswith("#/settings") and youtube.name == "YouTube"   # other keys kept
     assert "PS4" in youtube.user_agent
@@ -84,7 +84,7 @@ def test_broken_override_keeps_the_defaults(tmp_path):
     user = tmp_path / "services.toml"
     user.write_text("[[service]\n")
     found, errs = services.load_best([DEFAULTS, tmp_path / "none.toml", user])
-    assert len(found) == 5 and str(user) in errs[0]
+    assert len(found) == 6 and str(user) in errs[0]
     assert services.load_best([DEFAULTS]) == (found, [])
 
 

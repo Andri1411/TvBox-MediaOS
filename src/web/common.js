@@ -40,10 +40,11 @@ function connect(role, onMessage, onDrop) {
   };
 }
 
-// ---- list views: items are {label, value?, html?, cls?, disabled?, ok?, left?, right?}
+// ---- list views: items are {label, value?, html?, icon?, cls?, disabled?, ok?, left?, right?}
 function renderItems(list, items, focus) {
   list.innerHTML = items.map((item, i) => `
     <li class="${i === focus ? 'focus' : ''} ${item.disabled ? 'disabled' : ''} ${item.cls ?? ''}">
+      ${item.icon ? `<img class="icon" src="${escapeHtml(item.icon)}" alt="">` : ''}
       <span class="label">${escapeHtml(item.label)}</span>
       <span class="value">${item.html ?? escapeHtml(item.value)}</span>
     </li>`).join('');

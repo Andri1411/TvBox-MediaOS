@@ -12,7 +12,7 @@ let views = [];          // settings view stack; empty = tiles
 
 function tiles() {
   const services = (state.services ?? []).map((s) => ({
-    name: s.name, color: s.color,
+    name: s.name, color: s.color, icon: s.icon,
     badge: s.state === 'running' ? 'running' : s.state === 'starting' ? 'starting…' : '',
     ok: () => send('launch', { id: s.id }),
   }));
@@ -323,8 +323,9 @@ function render() {
   tileFocus = Math.max(0, Math.min(tileFocus, all.length - 1));
   $('tiles').style.setProperty('--cols', Math.min(COLS, all.length));
   $('tiles').innerHTML = all.map((tile, i) => `
-    <div class="tile ${i === tileFocus ? 'focus' : ''}" ${tile.color ? `style="--color:${escapeHtml(tile.color)}"` : ''}>
-      ${tile.badge ? `<span class="badge">${tile.badge}</span>` : ''}${escapeHtml(tile.name)}
+    <div class="tile ${i === tileFocus ? 'focus' : ''} ${tile.icon ? 'has-icon' : ''}" ${tile.color ? `style="--color:${escapeHtml(tile.color)}"` : ''}>
+      ${tile.icon ? `<img class="icon" src="${escapeHtml(tile.icon)}" alt="">` : ''}
+      ${tile.badge ? `<span class="badge">${escapeHtml(tile.badge)}</span>` : ''}<span class="name">${escapeHtml(tile.name)}</span>
     </div>`).join('');
   const errors = state.service_errors ?? [];
   $('problem').hidden = !errors.length;

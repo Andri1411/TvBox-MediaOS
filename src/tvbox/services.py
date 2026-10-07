@@ -16,7 +16,7 @@ from .bindings import APP_ID, ConfigError
 
 KINDS = ("browser", "native")
 RESERVED_IDS = ("home",)            # the home screen's workspace
-_KEYS = {"id", "name", "kind", "url", "user_agent", "flags", "exec", "color", "pause", "nav", "enabled"}
+_KEYS = {"id", "name", "kind", "url", "user_agent", "flags", "exec", "color", "pause", "nav", "enabled", "icon"}
 
 
 @dataclass(frozen=True)
@@ -31,6 +31,7 @@ class Service:
     color: str = "#3a4658"
     pause: bool = True
     nav: bool = False               # load the d-pad navigation extension (desktop sites)
+    icon: str = ""                  # override: icon name, file path or https URL (see icons.py)
 
 
 def _strings(value) -> bool:
@@ -104,6 +105,10 @@ def parse(documents: list[tuple[str, dict]]) -> list[Service]:
         if flags and not (_strings(flags) and all(f.startswith("--") for f in flags)):
             bad.append("flags must be a list of strings starting with --")
             flags = []
+        icon = entry.get("icon", "")
+        if not isinstance(icon, str) or (icon and not re.fullmatch(r"https://\S+|/\S+|[\w.+-]+", icon)):
+            bad.append('icon must be an icon name, an absolute path or an https:// URL')
+            icon = ""
         url, command = entry.get("url", ""), entry.get("exec", [])
         if kind == "browser" and not (isinstance(url, str) and re.match(r"https?://\S+$", url)):
             bad.append("a browser service needs url = \"http(s)://...\"")
@@ -115,7 +120,7 @@ def parse(documents: list[tuple[str, dict]]) -> list[Service]:
         services[sid] = Service(sid, entry.get("name", sid), kind, url if kind == "browser" else "",
                                 agent, tuple(flags), tuple(command) if kind == "native" else (),
                                 color, entry.get("pause", True),
-                                kind == "browser" and entry.get("nav", False))
+                                kind == "browser" and entry.get("nav", False), icon)
     if errors:
         raise ConfigError(errors)
     ordered = [services[s] for s in dict.fromkeys(order) if s in services]

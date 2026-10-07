@@ -19,6 +19,18 @@ header {
   opacity: .72; transition: transform .12s, opacity .12s;
 }
 .tile.focus { outline-color: var(--focus); opacity: 1; transform: scale(1.06); z-index: 1; }
+.tile .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* With an icon: the logo centred above the name, on a darker shade of the
+   service's colour so logos in that same colour stay visible. */
+.tile.has-icon {
+  flex-direction: column; align-items: stretch; justify-content: space-between; gap: .4rem;
+  padding-top: 1rem; font-size: 1.35rem;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--color) 40%, #101318), #101318 90%);
+}
+.tile .icon {
+  flex: 1; min-height: 0; align-self: center; max-width: 70%;
+  object-fit: contain; border-radius: .6rem; filter: drop-shadow(0 .15rem .4rem #0008);
+}
 .tile .badge {
   position: absolute; top: 1rem; right: 1.1rem; font-size: .95rem; font-weight: 500;
   padding: .15rem .6rem; border-radius: 1rem; background: #0007;

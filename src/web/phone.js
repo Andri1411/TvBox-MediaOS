@@ -84,7 +84,7 @@ $('type-form').addEventListener('submit', (event) => {
 function renderApps() {
   $('apps').innerHTML = [{ id: null, name: 'Home', state: 'running', home: true }, ...(state.services ?? [])]
     .map((s) => `<li class="tap" data-id="${escapeHtml(s.id ?? '')}">
-      <span>${escapeHtml(s.name)}${s.focused || (s.home && state.app === 'home') ? ' <span class="sub">· on screen</span>' : ''}</span>
+      <span>${s.icon ? `<img class="icon" src="${escapeHtml(s.icon)}" alt="">` : ''}${escapeHtml(s.name)}${s.focused || (s.home && state.app === 'home') ? ' <span class="sub">· on screen</span>' : ''}</span>
       <span class="dot ${s.state === 'running' ? 'on' : s.state === 'starting' ? 'warn' : ''}"></span></li>`).join('');
 }
 $('apps').addEventListener('click', (event) => {

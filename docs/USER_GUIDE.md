@@ -22,7 +22,8 @@ Holding a direction keeps moving, the same as holding a key.
 
 ## Home screen
 
-The tiles are your apps: YouTube, Netflix, Disney+, Floatplane, Jellyfin.
+The tiles are your apps: YouTube, Netflix, Disney+, Prime Video, Floatplane,
+Jellyfin.
 Move to one and press **A**. An app you leave keeps running in the
 background, so going back to it is instant, and the video you were watching
 is paused when you leave. "running" on a tile means it is still open.
@@ -54,7 +55,7 @@ It opens on top of whatever is on screen:
   with your phone. Premium is recognised.
 - **Floatplane**: shows a QR code and a code for floatplane.com/link; use your
   phone.
-- **Netflix, Disney+**: these are the normal websites. Move with the D-pad (a
+- **Netflix, Disney+, Prime Video**: these are the normal websites. Move with the D-pad (a
   white frame shows where you are). When you reach the e-mail or password
   field, the on-screen keyboard opens by itself.
 - **Jellyfin**: the first time, it asks for your server's address. Press
@@ -153,7 +154,7 @@ removed.
 
 | Problem | Try |
 |---|---|
-| An app shows a blank or frozen screen | YouTube, Netflix, Disney+ and Floatplane are restarted by themselves within about half a minute. Any app: System menu → **Restart app**. |
+| An app shows a blank or frozen screen | YouTube, Netflix, Disney+, Prime Video and Floatplane are restarted by themselves within about half a minute. Any app: System menu → **Restart app**. |
 | The controller does nothing | Press the Xbox button to wake it. If it was paired by Bluetooth, re-pair it (Settings → Bluetooth), or plug it in with a USB cable. |
 | No sound | System menu → **Audio output**, choose the TV or soundbar. Check **Mute**. |
 | The picture is black after switching the TV back on | Wait a few seconds; if it stays black, press the Xbox button twice and choose **Restart session**. |

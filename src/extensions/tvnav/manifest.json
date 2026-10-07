@@ -9,6 +9,7 @@
   "content_scripts": [
     { "matches": ["*://*.netflix.com/*"], "js": ["sites/netflix.js"], "run_at": "document_start" },
     { "matches": ["*://*.disneyplus.com/*"], "js": ["sites/disney.js"], "run_at": "document_start" },
+    { "matches": ["*://*.primevideo.com/*", "*://*.amazon.com/gp/video/*"], "js": ["sites/prime.js"], "run_at": "document_start" },
     { "matches": ["<all_urls>"], "js": ["nav.js"], "css": ["nav.css"], "run_at": "document_start" }
   ]
 }

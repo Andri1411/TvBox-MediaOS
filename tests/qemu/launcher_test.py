@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 import aiohttp
@@ -107,7 +108,22 @@ def main():
     st = install_test_services()
     ids = [s["id"] for s in st["services"]]
     check("services.toml in /etc adds tiles, defaults stay",
-          ids == ["alpha", "beta", "youtube", "netflix", "disney", "floatplane", "jellyfin"], str(ids))
+          ids == ["alpha", "beta", "youtube", "netflix", "disney", "prime", "floatplane", "jellyfin"], str(ids))
+
+    # Icons from the icon theme: by the icon setting (alpha: foot's), or from
+    # the .desktop file of the program a native service runs (Jellyfin's).
+    st = wait_state(lambda s: service(s, "alpha")["icon"] and service(s, "jellyfin")["icon"], 30)
+    kinds = {}
+    for sid in ("alpha", "jellyfin"):
+        url = service(st, sid)["icon"]
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:8080{url}", timeout=5) as r:
+                kinds[sid] = (r.status, r.headers.get("Content-Type"), "sandbox" in r.headers.get("Content-Security-Policy", ""))
+        except (OSError, ValueError) as err:
+            kinds[sid] = str(err)
+    check("native apps get their icons from the icon theme, served as pictures only",
+          all(k[0] == 200 and k[1].startswith("image/") and k[2] for k in kinds.values() if isinstance(k, tuple))
+          and len([k for k in kinds.values() if isinstance(k, tuple)]) == 2, str(kinds))
 
     api(cmd="home")
     daemon = Daemon()

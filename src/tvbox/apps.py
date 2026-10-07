@@ -110,7 +110,8 @@ class AppManager:
 
     def state(self) -> list[dict]:
         return [{"id": s.id, "name": s.name, "color": s.color, "kind": s.kind,
-                 "state": self.active.get(s.id, "stopped"), "focused": s.id == self.hub.app}
+                 "state": self.active.get(s.id, "stopped"), "focused": s.id == self.hub.app,
+                 "icon": self.hub.icons.url(s.id)}
                 for s in self.services]
 
     async def refresh(self) -> None:

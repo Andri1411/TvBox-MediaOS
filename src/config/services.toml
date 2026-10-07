@@ -15,9 +15,11 @@
 # kind = "native": any program
 #   exec        command line (list)
 # Both: name, color (tile colour), pause (pause playback when switching away,
-# default true for browsers).
+# default true for browsers), icon (the box fetches it from the site or the
+# app's .desktop file by itself; set an icon name, a file path or an
+# https:// URL to use another).
 
-order = ["youtube", "netflix", "disney", "floatplane", "jellyfin"]
+order = ["youtube", "netflix", "disney", "prime", "floatplane", "jellyfin"]
 
 [user_agents]
 # A TV device: makes youtube.com/tv serve the TV interface. The PS4's is the
@@ -48,6 +50,14 @@ kind = "browser"
 url = "https://www.disneyplus.com/home"
 nav = true
 color = "#0e3a8c"
+
+[[service]]
+id = "prime"
+name = "Prime Video"
+kind = "browser"
+url = "https://www.primevideo.com/"
+nav = true
+color = "#00a8e1"
 
 [[service]]
 id = "floatplane"

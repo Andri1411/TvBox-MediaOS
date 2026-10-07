@@ -43,6 +43,7 @@ button.danger { background: #3b1d20; color: #ffb3b5; }
 .list li { display: flex; align-items: center; justify-content: space-between; gap: 10px;
   background: var(--panel); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
 .list li .sub { color: var(--dim); font-size: 13px; }
+.list li .icon { width: 24px; height: 24px; object-fit: contain; border-radius: 5px; vertical-align: middle; margin-right: 10px; }
 .list li button { min-height: 40px; padding: 8px 14px; }
 .list li.tap { cursor: pointer; }
 .list li .dot { width: 10px; height: 10px; border-radius: 50%; background: #3a4658; flex: 0 0 auto; }

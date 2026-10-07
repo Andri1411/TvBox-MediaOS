@@ -47,7 +47,7 @@ const VIEWS = {
     return {
       title: 'Switch app',
       items: services.map((s) => ({
-        label: s.name, value: s.focused ? 'current' : s.state === 'stopped' ? '' : 'running',
+        label: s.name, icon: s.icon, value: s.focused ? 'current' : s.state === 'stopped' ? '' : 'running',
         ok: () => send('switch_app', { id: s.id }),
       })),
       initial: Math.max(0, services.findIndex((s) => s.focused)),
@@ -56,7 +56,7 @@ const VIEWS = {
   close_apps: () => {
     const open = openServices();
     const items = open.map((s) => ({
-      label: s.name, value: s.focused ? 'current' : '', ok: () => send('stop_app', { id: s.id }),
+      label: s.name, icon: s.icon, value: s.focused ? 'current' : '', ok: () => send('stop_app', { id: s.id }),
     }));
     if (open.length > 1) items.push({ label: 'Close all', ok: () => send('stop_all_apps') });
     return {

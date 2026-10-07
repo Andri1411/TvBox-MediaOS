@@ -25,6 +25,7 @@ id = "alpha"
 name = "Alpha"
 kind = "native"
 exec = ["sh", "-c", "foot; true"]
+icon = "foot"                       # the icon setting (no .desktop file runs "sh")
 [[service]]
 id = "beta"
 name = "Beta"

@@ -13,9 +13,10 @@ from this repository, but only when you ask.
 | How it is built and why | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DECISIONS.md](docs/DECISIONS.md) |
 | The original brief | [media-distro-prompt.md](media-distro-prompt.md) |
 
-**Status:** complete and tested in virtual machines; not yet tested on the
-real hardware. What only the hardware can show is listed at the end of
-[docs/DECISIONS.md](docs/DECISIONS.md) (Phase 6 status).
+**Status:** complete, tested in virtual machines and in use on the real
+hardware; fixes found there are recorded at the end of
+[docs/DECISIONS.md](docs/DECISIONS.md). Notes for coding agents continuing
+the work: [CLAUDE.md](CLAUDE.md).
 
 ## What you need
 

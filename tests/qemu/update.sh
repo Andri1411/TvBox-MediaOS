@@ -53,10 +53,16 @@ new=$(version)
 fallback=$(update 'u["fallback"]')
 check "tvbox-core $old → $new" test "$new" != "$old"
 check "the snapshot before the update is the boot fallback ($fallback)" test -n "$fallback" -a "$fallback" != None
+api '{"cmd":"update_check"}'
+sleep 2
+for _ in $(seq 60); do [[ $(update 'u["status"]') != checking ]] && break; sleep 2; done
+check "a check afterwards still says a restart is needed" test "$(update '"tvbox-core" in u["restart_for"]')" = True
 
 log "reboot into the new version"
 "$vm" reboot >/dev/null
 check "boots the updated system" test "$(booted)" = @
+wait_hub
+check "and no longer asks for a restart" test "$(update 'u["restart_for"]')" = "[]"
 
 log "two boots that never become healthy"
 "$vm" ssh 'systemctl stop tvbox-boot-ok.timer'          # this boot is not confirmed

@@ -17,8 +17,10 @@ function tiles() {
     ok: () => send('launch', { id: s.id }),
   }));
   const updates = state.update?.status === 'available' ? state.update.updates.length : 0;
-  return [...services, { name: 'Settings', badge: updates ? `${updates} update${updates === 1 ? '' : 's'}` : '',
-                         ok: () => push('main') }];
+  const restart = state.update?.restart_for?.length && state.update.status !== 'applying';
+  return [...services, { name: 'Settings',
+    badge: updates ? `${updates} update${updates === 1 ? '' : 's'}` : restart ? 'restart needed' : '',
+    ok: () => push('main') }];
 }
 
 const VIEWS = {
@@ -130,17 +132,22 @@ const VIEWS = {
   },
   updates: () => {
     const u = state.update ?? {};
+    const busy = ['checking', 'applying'].includes(u.status);
+    // The actions first: the package list below them can be long (it
+    // scrolls as the focus moves down it).
     const items = [];
     if (u.status === 'available') {
       items.push({ label: `Install ${u.updates.length} update${u.updates.length === 1 ? '' : 's'}`,
         value: downloadSize(u.download_size), ok: () => send('update_apply') });
-      for (const p of u.updates.slice(0, 7)) items.push({ label: p.name, value: `${p.old} → ${p.new}`, disabled: true });
-      if (u.updates.length > 7) items.push({ label: `and ${u.updates.length - 7} more`, disabled: true });
-    } else if (u.status === 'done' && u.reboot_for?.length) {
-      items.push({ label: 'Reboot now', value: 'needed for the update', ok: () => send('reboot') });
     }
-    if (!['checking', 'applying'].includes(u.status)) items.push({ label: 'Check for updates', ok: () => send('update_check') });
+    if (!busy && u.restart_for?.length) {
+      items.push({ label: 'Reboot now', value: 'to finish the last update', ok: () => send('reboot') });
+    }
+    if (!busy) items.push({ label: 'Check for updates', ok: () => send('update_check') });
     items.push({ label: 'Back', ok: pop });
+    if (u.status === 'available') {
+      for (const p of u.updates) items.push({ label: p.name, value: `${p.old} → ${p.new}`, disabled: true });
+    }
     return { title: 'Updates', items, log: updateLog(u) };
   },
   snapshots: () => {
@@ -245,20 +252,23 @@ function wifiSummary() {
 
 function updateSummary() {
   const u = state.update ?? {};
+  const restart = u.restart_for?.length ? 'restart needed' : '';
   return { checking: 'checking…', applying: 'installing…', available: `${u.updates?.length} available`,
-           none: 'up to date', done: u.reboot_for?.length ? 'installed, reboot needed' : 'installed',
-           error: 'failed' }[u.status] ?? 'check now';
+           none: restart || 'up to date', done: restart || 'installed', error: 'failed' }[u.status]
+    ?? (restart || 'check now');
 }
 
 function updateLog(u) {
-  if (u.status === 'error') return `Error: ${u.error}`;
   if (u.status === 'checking' || u.status === 'applying') return (u.log ?? []).slice(-6).join('\n') || 'Working…';
-  if (u.status === 'none') return 'Everything is up to date.';
+  const restart = u.restart_for?.length ? 'Restart the box to finish the last update.' : '';
+  if (u.status === 'error') return [`Error: ${u.error}`, restart].join(' ').trim();
+  if (u.status === 'none') return restart ? `No new updates. ${restart}` : 'Everything is up to date.';
   if (u.status === 'available') {
-    return `Nothing changes until you choose Install. A snapshot is taken first.${u.reboot_for?.length ? ' A restart is needed afterwards.' : ''}`;
+    const after = u.reboot_for?.length || restart ? ' A restart is needed afterwards.' : '';
+    return `Nothing changes until you choose Install. A snapshot is taken first.${after}`;
   }
-  if (u.status === 'done') return u.reboot_for?.length ? 'Installed. Restart the box to finish the update.' : 'Installed.';
-  return 'Updates are never installed automatically.';
+  if (u.status === 'done') return restart ? `Installed. ${restart}` : 'Installed.';
+  return restart || 'Updates are never installed automatically.';
 }
 
 function downloadSize(bytes) {
@@ -313,6 +323,8 @@ function render() {
     }
     $('note').hidden = !view.log;
     $('note').textContent = view.log ?? '';
+    // Again now that the note below has its size (it shrinks the list).
+    $('items').querySelector('.focus')?.scrollIntoView({ block: 'nearest' });
     $('about').hidden = !view.about;
     $('about').innerHTML = Object.entries(view.about ?? {})
       .map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('');
@@ -393,6 +405,8 @@ document.addEventListener('keydown', (event) => {
   const button = KEYS[event.key];
   if (button) { event.preventDefault(); nav(button); }
 });
+// A new display scale changes the page size: keep the focused row in view.
+window.addEventListener('resize', () => { if (views.length) render(); });
 tick();
 setInterval(tick, 10000);
 connect('home', onMessage, render);

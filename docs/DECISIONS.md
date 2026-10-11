@@ -1197,3 +1197,24 @@ distribution in the GPL's sense. What is published, and what goes with it:
   structure and not yet checked signed in. On Linux, Prime Video streams
   Widevine L3, so expect lower than HD resolution, as with Netflix in a
   browser.
+
+### Updates screen: long lists, restart needed
+Found on the real box after a first large Arch update:
+- The Updates screen listed seven packages and "and N more" between Install
+  and the other buttons; with the note below, "Check for updates" and "Back"
+  ended up under the bottom of the screen. Now the buttons come first and
+  every package follows as a row the focus can move through (the list
+  scrolls). The focused row is brought into view again after the note under
+  the list is filled in and when the page is resized (display scale): it
+  was left half hidden.
+- "Restart needed" was only known while the status was "done": pressing
+  Check for updates instead of Reboot now (or the hub restarting, which a
+  tvbox-* update does) lost it. The hub now keeps `restart_for` (packages
+  installed that need a restart) in `$XDG_RUNTIME_DIR/tvbox/restart-needed.json`:
+  it survives hub restarts and is gone after a reboot, which is exactly when
+  it stops being true. The Updates screen offers Reboot now whenever it is
+  set; the Settings tile and summary say "restart needed"; the phone too.
+- Tested: unit tests; the layout in headless Chrome with 60 fake updates
+  (VM update test extended: a check after installing still reports the
+  restart, and it is gone after the reboot). The real-hardware check is
+  the next large update.

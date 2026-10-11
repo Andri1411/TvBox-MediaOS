@@ -112,9 +112,12 @@ right-clicks and the right stick scrolls. Turn it off the same way.
 
 Updates are never installed by themselves. The box looks for them once a
 day; when there are some, the Settings tile says so. Settings → **Updates**
-shows what would change (**Check for updates** looks again right away). **Install** installs it; a
+shows what would change: the buttons are at the top, and every package that
+would be updated is listed below them (move down to scroll through it).
+**Check for updates** looks again right away. **Install** installs it; a
 backup (snapshot) is taken first. When it says a restart is needed, choose
-**Reboot now**.
+**Reboot now**; until you do, the Settings tile says "restart needed" and
+the Updates screen keeps offering **Reboot now**, even after another check.
 
 ### If the box doesn't start properly after an update
 

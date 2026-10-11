@@ -109,14 +109,15 @@ function renderUpdates() {
   const u = state.update ?? {};
   const text = { checking: 'Checking…', applying: 'Installing…', none: 'Everything is up to date.',
     available: `${u.updates?.length} updates${u.download_size ? `, ${u.download_size >= 1e6 ? `${(u.download_size / 1e6).toFixed(0)} MB` : `${Math.max(1, Math.round(u.download_size / 1e3))} kB`}` : ''}.${u.reboot_for?.length ? ' A restart is needed afterwards.' : ''}`,
-    done: u.reboot_for?.length ? 'Installed. Restart to finish.' : 'Installed.',
+    done: 'Installed.',
     error: `Failed: ${u.error}` }[u.status] ?? 'Updates are never installed automatically.';
-  $('update-status').textContent = text;
+  const restart = u.restart_for?.length && !['checking', 'applying'].includes(u.status);
+  $('update-status').textContent = restart ? `${text} Restart the box to finish the last update.` : text;
   $('update-list').innerHTML = u.status === 'available' ? u.updates.map((p) =>
     `<li><span>${escapeHtml(p.name)}</span><span class="sub">${escapeHtml(p.old)} → ${escapeHtml(p.new)}</span></li>`).join('') : '';
   $('update-check').disabled = ['checking', 'applying'].includes(u.status);
   $('update-apply').hidden = u.status !== 'available';
-  $('update-reboot').hidden = !(u.status === 'done' && u.reboot_for?.length);
+  $('update-reboot').hidden = !restart;
   $('update-log').textContent = ['checking', 'applying'].includes(u.status) ? (u.log ?? []).join('\n') : '';
   $('snapshots').innerHTML = (u.snapshots ?? []).filter((s) => s.type !== 'post').map((s) => `<li>
       <span>${escapeHtml(new Date(`${s.date.replace(' ', 'T')}Z`).toLocaleString())}<br><span class="sub">${

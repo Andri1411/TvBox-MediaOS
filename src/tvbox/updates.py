@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from . import NAME
-from .util import setup_logging
+from .util import runtime_dir, setup_logging
 
 log = setup_logging("hub")
 
@@ -17,6 +17,22 @@ SOCKET = Path(f"/run/{NAME}/updater.sock")
 LOG_LINES = 12
 CHECK_FIRST_S = 30 * 60          # first automatic check half an hour after start
 CHECK_EVERY_S = 24 * 3600
+
+
+def restart_file() -> Path:
+    """Packages installed since the last restart that only take effect after
+    one. In the runtime directory: kept while the hub restarts (an update of
+    tvbox-* restarts it), gone after a reboot, which is exactly when it no
+    longer applies."""
+    return runtime_dir() / "restart-needed.json"
+
+
+def load_restart() -> list[str]:
+    try:
+        names = json.loads(restart_file().read_text())
+    except (OSError, ValueError):
+        return []
+    return [n for n in names if isinstance(n, str)] if isinstance(names, list) else []
 
 
 class UpdaterError(Exception):
@@ -62,7 +78,8 @@ class Updates:
         self.status = "idle"            # idle | checking | available | none | applying | done | error
         self.updates: list[dict] = []
         self.download_size: int | None = None
-        self.reboot_for: list[str] = []
+        self.reboot_for: list[str] = []         # of the updates on offer
+        self.restart_for = load_restart()       # of updates installed, until a restart
         self.checked: float | None = None
         self.error = ""
         self.log: list[str] = []
@@ -74,7 +91,7 @@ class Updates:
 
     def state(self) -> dict:
         return {"status": self.status, "updates": self.updates, "download_size": self.download_size,
-                "reboot_for": self.reboot_for, "checked": self.checked, "error": self.error,
+                "reboot_for": self.reboot_for, "restart_for": self.restart_for, "checked": self.checked, "error": self.error,
                 "log": self.log, "snapshots": self.snapshots, "fallback": self.fallback,
                 "fallback_time": self.fallback_time, "booted_snapshot": self.booted}
 
@@ -124,6 +141,12 @@ class Updates:
             result = await call({"cmd": "apply"}, self._log)
             self.reboot_for = result.get("reboot_for", [])
             self.updates = []
+            if self.reboot_for:
+                self.restart_for = sorted(set(self.restart_for) | set(self.reboot_for))
+                try:
+                    restart_file().write_text(json.dumps(self.restart_for))
+                except OSError as err:
+                    log.warning("restart-needed: %s", err)
             self.status = "done"
             log.info("update installed: %s", ", ".join(result.get("changed", [])))
         except (UpdaterError, TimeoutError, ValueError) as err:

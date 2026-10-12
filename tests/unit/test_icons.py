@@ -114,3 +114,28 @@ def test_read_all_reads_every_chunk():
     assert asyncio.run(icons.read_all(Response([b"ab", b"cd", b"e"]))) == b"abcde"
     big = Response([b"x" * icons.MAX_BYTES, b"more"])
     assert len(asyncio.run(icons.read_all(big))) == icons.MAX_BYTES
+
+
+def test_without_network_tries_again_a_minute_later(tmp_path, monkeypatch):
+    """At boot the hub starts before the network: the first fetch fails."""
+    store = icons.Icons(tmp_path)
+    service = type("S", (), {"id": "youtube", "icon": "", "kind": "browser", "url": "https://www.youtube.com/"})()
+    now = [1000.0]
+    monkeypatch.setattr(icons.time, "monotonic", lambda: now[0])
+
+    async def offline(url):
+        raise OSError("Temporary failure in name resolution")
+    monkeypatch.setattr(store, "find_web", offline)
+    assert not asyncio.run(store.refresh([service]))
+    assert not store.stale("youtube")
+    now[0] += 61
+    assert store.stale("youtube")
+
+    async def no_icon(url):
+        return None
+    monkeypatch.setattr(store, "find_web", no_icon)
+    asyncio.run(store.refresh([service]))
+    now[0] += 61
+    assert not store.stale("youtube")           # a site without one: hours, not a minute
+    now[0] += icons.RETRY_S
+    assert store.stale("youtube")

@@ -26,7 +26,8 @@ from .util import setup_logging
 log = setup_logging("hub")
 
 MAX_AGE_S = 30 * 86400
-RETRY_S = 6 * 3600                  # after a failed fetch (no network yet, ...)
+RETRY_S = 6 * 3600                  # after a site offered no usable icon
+OFFLINE_RETRY_S = 60                # after no answer at all (at boot the network comes later)
 MAX_BYTES = 2 * 1024 * 1024
 # A desktop browser: sites hand it their normal pages and icons.
 USER_AGENT = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -171,7 +172,7 @@ async def read_all(response) -> bytes:
 class Icons:
     def __init__(self, directory: Path | None = None):
         self.directory = directory or cache_dir()
-        self.failed: dict[str, float] = {}          # id -> monotonic time of the last failure
+        self.failed: dict[str, tuple[float, float]] = {}    # id -> (monotonic time, wait before retrying)
 
     def path(self, service_id: str) -> Path | None:
         return cached(service_id, self.directory)
@@ -186,25 +187,30 @@ class Icons:
         if path and time.time() - path.stat().st_mtime < MAX_AGE_S:
             return False
         failed = self.failed.get(service_id)
-        return not failed or time.monotonic() - failed > RETRY_S
+        return not failed or time.monotonic() - failed[0] > failed[1]
 
     async def refresh(self, services, force: bool = False) -> bool:
         """Fetch the icons that are missing or old. True if any changed."""
+        import aiohttp
         changed = False
         for service in services:
             if not force and not self.stale(service.id):
                 continue
+            wait = RETRY_S
             try:
                 found = await self.find(service)
-            except (OSError, asyncio.TimeoutError, ValueError) as err:
+            except (OSError, asyncio.TimeoutError, aiohttp.ClientError, ValueError) as err:
                 log.info("icon for %s: %s", service.id, err)
                 found = None
+                # No network, or no answer (aiohttp's connection errors are OSErrors).
+                if isinstance(err, (OSError, asyncio.TimeoutError)):
+                    wait = OFFLINE_RETRY_S
             if found:
                 self.save(service.id, *found)
                 self.failed.pop(service.id, None)
                 changed = True
             else:
-                self.failed[service.id] = time.monotonic()
+                self.failed[service.id] = (time.monotonic(), wait)
         return changed
 
     def save(self, service_id: str, ext: str, data: bytes) -> None:

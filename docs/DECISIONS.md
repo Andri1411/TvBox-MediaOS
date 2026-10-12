@@ -1218,3 +1218,12 @@ Found on the real box after a first large Arch update:
   (VM update test extended: a check after installing still reports the
   restart, and it is gone after the reboot). The real-hardware check is
   the next large update.
+
+### App icons: retry a minute after no network
+On the real box only Jellyfin got its icon (a local file): the hub fetches
+the web icons when it starts, which at boot is before the network is up
+("Temporary failure in name resolution"), and a failure waited 6 hours.
+Now a failure without an answer (connection error, timeout) is retried a
+minute later; only a site that answered without a usable icon waits 6 hours.
+The watcher checks every minute (a few stat() calls when nothing is due).
+Errors from aiohttp that are not OSErrors (a broken response) are caught too.

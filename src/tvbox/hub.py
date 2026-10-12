@@ -601,10 +601,12 @@ class Hub:
             self.push_state()
 
     async def icon_watch(self) -> None:
-        """Fetch missing icons now, and again later if there was no network."""
+        """Fetch missing icons now, and again when they are due: a minute
+        after there was no network (at boot), hours after a site had none.
+        Checking costs a few stat() calls when nothing is due."""
         while True:
             await self.refresh_icons()
-            await asyncio.sleep(1800)
+            await asyncio.sleep(icons.OFFLINE_RETRY_S)
 
     async def icon(self, request: web.Request) -> web.Response:
         service_id = request.match_info["id"]
